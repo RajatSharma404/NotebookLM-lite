@@ -132,3 +132,28 @@
 - [x] **Task 9.3: UX Polish & Responsive Micro-Interactions**
   - Keyboard shortcuts (`Ctrl+Enter` to send, `Ctrl+B` toggle sources, `Ctrl+J` toggle studio).
   - Empty states, loading skeletons, and smooth CSS transitions.
+
+---
+
+## Phase 10: Editorial Research Desk UI/UX Redesign
+- [x] **Task 10.1: Design Tokens & Typography Foundation**
+  - Load Google Fonts (`Instrument Serif`, `Hanken Grotesk`, `JetBrains Mono`).
+  - Implement full ink/paper tokens in `tokens.css`, eliminating AI-dashboard indigo palette.
+  - Add 3.5% non-interactive SVG grain overlay, radial dot grid texture, custom scrollbars, and `prefers-reduced-motion` in `index.css`.
+- [x] **Task 10.2: Header & Chrome Shell**
+  - Custom SVG geometric mark, serif "Notebook" + mono "LM" + superscript "lite".
+  - Minimal model popover with accent tick, 36px ghost theme toggle with 15° rotation.
+  - Unequal pane layout (280px left, 380px right) separated by 1px rules with edge collapse handles.
+- [x] **Task 10.3: Sources Ledger Panel**
+  - Hairline ledger rows (zero cards), square animated checkboxes, middle-ellipsis filenames, 2px token share bars.
+  - Accent-filled Upload button with nudge arrow, secondary ghost button for text paste, drag-and-drop overlay.
+- [x] **Task 10.4: Center Column, Citations & Raised Composer**
+  - Left-aligned empty state with mono eyebrow, 56px Instrument Serif H1, and 4 numbered hover rows (`01`-`04`).
+  - Raised composer (`var(--bg-2)`, 14px radius, `var(--shadow-raised)`) with auto-grow textarea, accent focus ring, and status footer.
+  - Message turns without bubble wrappers: user turn in serif italic with left rule, assistant in 16px body prose.
+  - Interactive `<CitationPill />` superscript chips with hover excerpt popover.
+- [x] **Task 10.5: Studio Panel & Audio Player**
+  - Raised audio player (`var(--bg-2)`, `var(--shadow-raised)`) with `var(--signal)` accents.
+  - Interactive canvas waveform scrubber (waveform IS the scrubber, no range input), host avatars (Alex/Morgan), 46px signal play button, segmented speed pills.
+  - Minimal editorial tablist (`STUDIO` / `NOTES`), 2x2 clickable generator tiles, hairline artifact ledger, and manuscript modal viewer.
+
