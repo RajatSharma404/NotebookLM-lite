@@ -170,4 +170,38 @@ This document maintains a living, structured record of every user prompt, archit
   - [`TASK.md`](file:///d:/NotebookLM%20lite/TASK.md)
   - [`CONTEXT.md`](file:///d:/NotebookLM%20lite/CONTEXT.md)
 
+---
+
+### Prompt 7 & 8: Editorial Research Desk UI/UX Redesign
+- **User Intent**: Complete visual and interaction overhaul of NotebookLM lite to eliminate the "AI-generated dashboard" trope (indigo on navy, card-overkill, centered empty states, generic Inter font, repeated Generate buttons) and establish an authentic "Editorial research desk" aesthetic.
+- **Constraints**:
+  - Visual and interaction rework only; do NOT change business logic, API calls, data flow, state shape, prop contracts, IDs, or accessibility attributes.
+  - No new dependencies (except web fonts). Strictly NO raw hex/rgb or magic numbers; all values resolve via CSS variables.
+  - Only `transform`/`opacity` animations, respecting `prefers-reduced-motion`.
+  - Exactly TWO raised surfaces: chat composer and audio player. Everything else uses hairline 1px rules and quiet ledger rows.
+  - Reserve `var(--signal)` (`#FF5A36`) exclusively for the audio player.
+- **Actions Taken**:
+  - Loaded `Instrument Serif`, `Hanken Grotesk`, and `JetBrains Mono` via Google Fonts in `frontend/index.html`.
+  - Built comprehensive ink/paper token system in `frontend/src/tokens.css` with dark/light themes.
+  - Implemented 3.5% SVG noise grain overlay, radial-masked dot grid texture, custom scrollbars, and reduced motion fallbacks in `frontend/src/index.css`.
+  - Rebuilt header and 3-pane shell in `frontend/src/App.tsx` with geometric SVG mark, serif wordmark, custom model popover, 36px ghost theme toggle, and edge collapse rails (280px left, 380px right).
+  - Rebuilt `frontend/src/components/SourcesPanel.tsx` with hairline ledger rows, animated square checkboxes, middle-ellipsis filenames, 2px token share bars, and sole accent-filled Upload button.
+  - Rebuilt `frontend/src/components/CitationPill.tsx` with superscript chip and editorial popover excerpt.
+  - Rebuilt `frontend/src/components/ChatWorkspace.tsx` with left-aligned 56px Instrument Serif empty state, 4 numbered hover rows (`01`-`04`), raised composer surface (`var(--bg-2)` + accent ring), auto-grow textarea, and message turns without card bubbles.
+  - Rebuilt `frontend/src/components/AudioPlayer.tsx` as a raised surface with interactive waveform scrubber canvas, host monograms (Alex/Morgan), 46px signal play button, and segmented speed pills.
+  - Rebuilt `frontend/src/components/StudioPanel.tsx` with editorial text tablist (`STUDIO` / `NOTES`), 2x2 clickable generator tiles, hairline artifact ledger, and manuscript preview modal.
+- **Files Modified**:
+  - [`frontend/index.html`](file:///d:/NotebookLM%20lite/frontend/index.html)
+  - [`frontend/src/tokens.css`](file:///d:/NotebookLM%20lite/frontend/src/tokens.css)
+  - [`frontend/src/index.css`](file:///d:/NotebookLM%20lite/frontend/src/index.css)
+  - [`frontend/src/App.tsx`](file:///d:/NotebookLM%20lite/frontend/src/App.tsx)
+  - [`frontend/src/components/SourcesPanel.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/SourcesPanel.tsx)
+  - [`frontend/src/components/CitationPill.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/CitationPill.tsx)
+  - [`frontend/src/components/ChatWorkspace.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/ChatWorkspace.tsx)
+  - [`frontend/src/components/AudioPlayer.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/AudioPlayer.tsx)
+  - [`frontend/src/components/StudioPanel.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/StudioPanel.tsx)
+  - [`TASK.md`](file:///d:/NotebookLM%20lite/TASK.md)
+  - [`CONTEXT.md`](file:///d:/NotebookLM%20lite/CONTEXT.md)
+
+
 
