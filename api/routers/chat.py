@@ -1,9 +1,11 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.models import Notebook, ChatThread, Message
-from core.schemas import ChatThreadResponse, MessageResponse, CitationItem
+from core.schemas import ChatThreadResponse, MessageResponse, CitationItem, ChatQueryRequest
+from core.rag.generator import GroundedChatEngine
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/chat", tags=["Chat"])
 
@@ -43,3 +45,34 @@ def get_chat_threads(notebook_id: str, db: Session = Depends(get_db)):
             messages=msg_items
         ))
     return results
+
+@router.post("/stream")
+async def stream_chat(
+    notebook_id: str,
+    payload: ChatQueryRequest,
+    db: Session = Depends(get_db)
+):
+    nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+
+    thread_id = payload.thread_id
+    if not thread_id:
+        # Create default thread
+        thread = ChatThread(notebook_id=notebook_id, title=payload.query[:40])
+        db.add(thread)
+        db.commit()
+        db.refresh(thread)
+        thread_id = thread.id
+
+    return StreamingResponse(
+        GroundedChatEngine.stream_chat(
+            query=payload.query,
+            notebook_id=notebook_id,
+            thread_id=thread_id,
+            db=db,
+            llm_provider=payload.llm_provider,
+            model_name=payload.model_name
+        ),
+        media_type="text/event-stream"
+    )
