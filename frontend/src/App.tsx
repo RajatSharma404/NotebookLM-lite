@@ -3,15 +3,7 @@ import { Notebook, Source, Message, Note, StudioArtifact, CitationItem } from '.
 import { SourcesPanel } from './components/SourcesPanel';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { StudioPanel } from './components/StudioPanel';
-import { 
-  BookMarked, 
-  Moon, 
-  Sun, 
-  ChevronLeft, 
-  ChevronRight, 
-  Cpu, 
-  FolderOpen
-} from 'lucide-react';
+import { Moon, Sun, Check, ChevronDown } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -20,6 +12,7 @@ export const App: React.FC = () => {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState('gemini');
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
 
   // Active Notebook State
   const [activeNotebook, setActiveNotebook] = useState<Notebook>({
@@ -188,7 +181,6 @@ export const App: React.FC = () => {
     let accumulatedContent = '';
     let currentCitations: CitationItem[] = [];
 
-    // Temporary placeholder assistant message
     setMessages(prev => [
       ...prev,
       {
@@ -372,198 +364,336 @@ export const App: React.FC = () => {
   };
 
   const activeSources = sources.filter(s => s.is_active);
+  const totalTokens = activeSources.reduce((acc, s) => acc + (s.token_count || 0), 0);
+
+  const modelOptions = [
+    { id: 'gemini', label: 'Gemini 1.5 Flash' },
+    { id: 'openai', label: 'GPT-4o-mini' },
+    { id: 'anthropic', label: 'Claude 3.5 Sonnet' },
+    { id: 'ollama', label: 'Ollama (Local Llama 3.2)' }
+  ];
+
+  const currentModelLabel = modelOptions.find(m => m.id === selectedModel)?.label || 'Gemini 1.5 Flash';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {/* Top Navigation Bar */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: 'var(--bg-0)', position: 'relative' }}>
+      {/* 3-4% SVG Noise Grain Overlay */}
+      <div className="grain-overlay" aria-hidden="true" />
+
+      {/* Top Header Bar */}
       <header style={{
-        height: '52px',
-        backgroundColor: 'var(--bg-panel)',
-        borderBottom: '1px solid var(--border-subtle)',
+        height: '48px',
+        backgroundColor: 'var(--bg-1)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 16px',
-        zIndex: 100
+        padding: '0 20px',
+        zIndex: 50,
+        userSelect: 'none'
       }}>
-        {/* Brand & Notebook Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--brand-primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff'
-            }}>
-              <BookMarked size={16} />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--text-primary)' }}>
-              NotebookLM<span style={{ color: 'var(--brand-primary)', fontWeight: 400, marginLeft: '3px' }}>lite</span>
+        {/* Left: Geometric Wordmark + Slash + Notebook Title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+          {/* Logo Geometric Mark */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="NotebookLM mark">
+              <rect x="1.5" y="1.5" width="15" height="15" stroke="var(--text-1)" strokeWidth="1.5" />
+              <line x1="1.5" y1="9" x2="16.5" y2="9" stroke="var(--text-3)" strokeWidth="1" strokeDasharray="2 2" />
+              <rect x="5" y="5" width="3" height="3" fill="var(--accent)" />
+            </svg>
+            <span style={{ display: 'inline-flex', alignItems: 'baseline' }}>
+              <span className="serif" style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text-1)', letterSpacing: '-0.02em', lineHeight: 1 }}>Notebook</span>
+              <span className="mono" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-1)', marginLeft: '3px' }}>LM</span>
+              <span className="mono" style={{ fontSize: '9px', fontWeight: 600, color: 'var(--accent)', marginLeft: '3px', textTransform: 'uppercase', letterSpacing: '0.08em', verticalAlign: 'super' }}>lite</span>
             </span>
           </div>
 
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'var(--bg-panel-elevated)',
-            padding: '4px 10px',
-            borderRadius: '6px',
-            border: '1px solid var(--border-default)',
-            fontSize: '12px'
-          }}>
-            <FolderOpen size={13} color="var(--brand-primary)" />
-            <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{activeNotebook.title}</span>
-          </div>
+          <span className="mono" style={{ color: 'var(--text-3)', fontSize: '13px' }}>/</span>
+
+          {/* Notebook Title in Serif (truncated) */}
+          <span
+            className="serif"
+            title={activeNotebook.title}
+            style={{
+              fontSize: '17px',
+              color: 'var(--text-2)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '320px'
+            }}
+          >
+            {activeNotebook.title}
+          </span>
         </div>
 
-        {/* Model Selector & Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            backgroundColor: 'var(--bg-input)',
-            border: '1px solid var(--border-default)',
-            borderRadius: '6px',
-            padding: '3px 8px',
-            fontSize: '12px'
-          }}>
-            <Cpu size={13} color="var(--accent-cyan)" />
-            <select
-              value={selectedModel}
-              onChange={e => setSelectedModel(e.target.value)}
+        {/* Right: Model Selector & Theme Toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Compact Model Selector with Popover */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
+              className="mono"
               style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--line)',
                 backgroundColor: 'transparent',
-                border: 'none',
-                color: 'var(--text-primary)',
                 fontSize: '12px',
-                cursor: 'pointer'
+                color: 'var(--text-2)',
+                transition: 'border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)'
               }}
+              aria-label="Select model"
+              aria-haspopup="listbox"
+              aria-expanded={modelDropdownOpen}
             >
-              <option value="gemini">Gemini 1.5 Flash</option>
-              <option value="openai">GPT-4o-mini</option>
-              <option value="anthropic">Claude 3.5 Sonnet</option>
-              <option value="ollama">Ollama (Local Llama 3.2)</option>
-            </select>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'var(--accent)' }} />
+              <span>{currentModelLabel}</span>
+              <ChevronDown size={12} style={{ color: 'var(--text-3)', transform: modelDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--duration-fast) var(--ease-out)' }} />
+            </button>
+
+            {modelDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  right: 0,
+                  width: '210px',
+                  backgroundColor: 'var(--bg-2)',
+                  border: '1px solid var(--line-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: 'var(--shadow-raised)',
+                  padding: '4px',
+                  zIndex: 200
+                }}
+                role="listbox"
+              >
+                {modelOptions.map((opt) => {
+                  const isSelected = opt.id === selectedModel;
+                  return (
+                    <button
+                      key={opt.id}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setSelectedModel(opt.id);
+                        setModelDropdownOpen(false);
+                      }}
+                      className="mono"
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 10px',
+                        fontSize: '12px',
+                        color: isSelected ? 'var(--text-1)' : 'var(--text-2)',
+                        backgroundColor: isSelected ? 'var(--bg-hover)' : 'transparent',
+                        borderRadius: '4px',
+                        textAlign: 'left'
+                      }}
+                      onMouseEnter={e => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                      }}
+                      onMouseLeave={e => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <span>{opt.label}</span>
+                      {isSelected && <Check size={13} color="var(--accent)" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
+          {/* 36px Ghost Theme Toggle Button */}
           <button
             onClick={toggleTheme}
             style={{
-              padding: '6px',
-              borderRadius: '6px',
-              backgroundColor: 'var(--bg-panel-elevated)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-secondary)'
+              width: '36px',
+              height: '36px',
+              borderRadius: 'var(--radius-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-2)',
+              transition: 'transform 200ms var(--ease-out), color var(--duration-fast) var(--ease-out)'
             }}
+            aria-label={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} theme`}
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-1)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-2)'}
           >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            {theme === 'dark' ? (
+              <Sun size={16} style={{ transition: 'transform 200ms var(--ease-out)' }} />
+            ) : (
+              <Moon size={16} style={{ transition: 'transform 200ms var(--ease-out)' }} />
+            )}
           </button>
         </div>
       </header>
 
-      {/* Main 3-Column Content Body */}
+      {/* Main Unequal 3-Pane Shell (Separated by 1px rules, no gaps, no card wrappers) */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {/* Left Sources Column */}
+        {/* Left Pane: Sources (280px open, 56px collapsed rail) */}
         <div style={{
-          width: leftOpen ? '300px' : '0px',
-          minWidth: leftOpen ? '300px' : '0px',
+          width: leftOpen ? '280px' : '56px',
+          minWidth: leftOpen ? '280px' : '56px',
           height: '100%',
           overflow: 'hidden',
-          transition: 'all 0.25s ease'
+          borderRight: '1px solid var(--line)',
+          backgroundColor: 'var(--bg-1)',
+          transition: 'width var(--duration-normal) var(--ease-out), min-width var(--duration-normal) var(--ease-out)',
+          position: 'relative'
         }}>
-          <SourcesPanel
-            sources={sources}
-            onToggleSource={handleToggleSource}
-            onDeleteSource={handleDeleteSource}
-            onAddSource={handleAddSource}
-            onPasteText={handlePasteText}
+          {leftOpen ? (
+            <SourcesPanel
+              sources={sources}
+              onToggleSource={handleToggleSource}
+              onDeleteSource={handleDeleteSource}
+              onAddSource={handleAddSource}
+              onPasteText={handlePasteText}
+              totalTokens={totalTokens}
+            />
+          ) : (
+            <div
+              onClick={() => setLeftOpen(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                paddingTop: '20px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              title="Expand Sources panel"
+            >
+              <div
+                className="mono"
+                style={{
+                  writingMode: 'vertical-rl',
+                  textOrientation: 'mixed',
+                  transform: 'rotate(180deg)',
+                  fontSize: '11px',
+                  letterSpacing: '0.12em',
+                  color: 'var(--text-3)',
+                  textTransform: 'uppercase'
+                }}
+              >
+                SOURCES [{activeSources.length}]
+              </div>
+            </div>
+          )}
+
+          {/* Left Pane Edge Handle (8px hit area, accent hairline on hover) */}
+          <div
+            onClick={() => setLeftOpen(!leftOpen)}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              width: '8px',
+              height: '100%',
+              cursor: 'col-resize',
+              zIndex: 30,
+              backgroundColor: 'transparent',
+              transition: 'background-color var(--duration-fast) var(--ease-out)'
+            }}
+            title={leftOpen ? "Collapse Sources" : "Expand Sources"}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
           />
         </div>
 
-        {/* Left Toggle Button */}
-        <button
-          onClick={() => setLeftOpen(!leftOpen)}
-          style={{
-            position: 'absolute',
-            left: leftOpen ? '292px' : '8px',
-            top: '12px',
-            zIndex: 50,
-            width: '20px',
-            height: '24px',
-            borderRadius: '4px',
-            backgroundColor: 'var(--bg-panel-elevated)',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'var(--shadow-sm)',
-            transition: 'left 0.25s ease'
-          }}
-          title={leftOpen ? "Collapse Sources" : "Expand Sources"}
-        >
-          {leftOpen ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
-        </button>
-
-        {/* Center Grounded Workspace */}
-        <div style={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+        {/* Center Grounded Workspace (Reading Column ~720px) */}
+        <div style={{ flex: 1, height: '100%', overflow: 'hidden', backgroundColor: 'var(--bg-0)', display: 'flex', flexDirection: 'column' }}>
           <ChatWorkspace
             messages={messages}
             activeSources={activeSources}
+            totalTokens={totalTokens}
             isStreaming={isStreaming}
             onSendMessage={handleSendMessage}
             onSaveToNote={handleSaveToNote}
           />
         </div>
 
-        {/* Right Toggle Button */}
-        <button
-          onClick={() => setRightOpen(!rightOpen)}
-          style={{
-            position: 'absolute',
-            right: rightOpen ? '352px' : '8px',
-            top: '12px',
-            zIndex: 50,
-            width: '20px',
-            height: '24px',
-            borderRadius: '4px',
-            backgroundColor: 'var(--bg-panel-elevated)',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-muted)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: 'var(--shadow-sm)',
-            transition: 'right 0.25s ease'
-          }}
-          title={rightOpen ? "Collapse Studio" : "Expand Studio"}
-        >
-          {rightOpen ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
-        </button>
-
-        {/* Right Studio Column */}
+        {/* Right Pane: Studio & Notes (380px open, 56px collapsed rail) */}
         <div style={{
-          width: rightOpen ? '360px' : '0px',
-          minWidth: rightOpen ? '360px' : '0px',
+          width: rightOpen ? '380px' : '56px',
+          minWidth: rightOpen ? '380px' : '56px',
           height: '100%',
           overflow: 'hidden',
-          transition: 'all 0.25s ease'
+          borderLeft: '1px solid var(--line)',
+          backgroundColor: 'var(--bg-1)',
+          transition: 'width var(--duration-normal) var(--ease-out), min-width var(--duration-normal) var(--ease-out)',
+          position: 'relative'
         }}>
-          <StudioPanel
-            artifacts={artifacts}
-            notes={notes}
-            onGenerateArtifact={handleGenerateArtifact}
-            onSaveNote={handleSaveNote}
-            onDeleteNote={handleDeleteNote}
-            onSynthesizeNotes={handleSynthesizeNotes}
+          {/* Right Pane Edge Handle */}
+          <div
+            onClick={() => setRightOpen(!rightOpen)}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '8px',
+              height: '100%',
+              cursor: 'col-resize',
+              zIndex: 30,
+              backgroundColor: 'transparent',
+              transition: 'background-color var(--duration-fast) var(--ease-out)'
+            }}
+            title={rightOpen ? "Collapse Studio" : "Expand Studio"}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--accent)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'}
           />
+
+          {rightOpen ? (
+            <StudioPanel
+              artifacts={artifacts}
+              notes={notes}
+              onGenerateArtifact={handleGenerateArtifact}
+              onSaveNote={handleSaveNote}
+              onDeleteNote={handleDeleteNote}
+              onSynthesizeNotes={handleSynthesizeNotes}
+            />
+          ) : (
+            <div
+              onClick={() => setRightOpen(true)}
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                paddingTop: '20px',
+                cursor: 'pointer',
+                userSelect: 'none'
+              }}
+              title="Expand Studio panel"
+            >
+              <div
+                className="mono"
+                style={{
+                  writingMode: 'vertical-rl',
+                  textOrientation: 'mixed',
+                  transform: 'rotate(180deg)',
+                  fontSize: '11px',
+                  letterSpacing: '0.12em',
+                  color: 'var(--text-3)',
+                  textTransform: 'uppercase'
+                }}
+              >
+                STUDIO & NOTES [{artifacts.length}]
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
