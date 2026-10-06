@@ -1,0 +1,86 @@
+/* Theme Design Tokens for NotebookLM-lite */
+
+:root,
+:root[data-theme="dark"] {
+  /* Surfaces & Backgrounds */
+  --bg-app: #0b0f17;
+  --bg-panel: #111827;
+  --bg-panel-elevated: #1f2937;
+  --bg-hover: #374151;
+  --bg-input: #0f172a;
+  --bg-card: rgba(31, 41, 55, 0.6);
+
+  /* Borders & Dividers */
+  --border-subtle: #1e293b;
+  --border-default: #334155;
+  --border-focus: #6366f1;
+
+  /* Typography */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-inverse: #0b0f17;
+
+  /* Brand Accents */
+  --brand-primary: #6366f1;
+  --brand-hover: #4f46e5;
+  --brand-glow: rgba(99, 102, 241, 0.25);
+  --accent-cyan: #06b6d4;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-rose: #f43f5e;
+
+  /* Citations */
+  --citation-bg: rgba(99, 102, 241, 0.15);
+  --citation-border: rgba(99, 102, 241, 0.4);
+  --citation-text: #a5b4fc;
+
+  /* Glassmorphism & Shadows */
+  --glass-bg: rgba(17, 24, 39, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-theme="light"] {
+  /* Surfaces & Backgrounds */
+  --bg-app: #f8fafc;
+  --bg-panel: #ffffff;
+  --bg-panel-elevated: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --bg-input: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+
+  /* Borders & Dividers */
+  --border-subtle: #e2e8f0;
+  --border-default: #cbd5e1;
+  --border-focus: #4f46e5;
+
+  /* Typography */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --text-inverse: #ffffff;
+
+  /* Brand Accents */
+  --brand-primary: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-glow: rgba(79, 70, 229, 0.15);
+  --accent-cyan: #0891b2;
+  --accent-emerald: #059669;
+  --accent-amber: #d97706;
+  --accent-rose: #e11d48;
+
+  /* Citations */
+  --citation-bg: #eef2ff;
+  --citation-border: #c7d2fe;
+  --citation-text: #4338ca;
+
+  /* Glassmorphism & Shadows */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
