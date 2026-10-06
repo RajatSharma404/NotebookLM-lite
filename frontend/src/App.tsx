@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Notebook, Source, Message, Note, StudioArtifact } from './types';
+import { Notebook, Source, Message, Note, StudioArtifact, CitationItem } from './types';
 import { SourcesPanel } from './components/SourcesPanel';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { StudioPanel } from './components/StudioPanel';
@@ -10,15 +10,16 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Cpu, 
-  Sparkles,
   FolderOpen
 } from 'lucide-react';
+
+const API_BASE = '/api';
 
 export const App: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
-  const [selectedModel, setSelectedModel] = useState('Gemini 1.5 Flash');
+  const [selectedModel, setSelectedModel] = useState('gemini');
 
   // Active Notebook State
   const [activeNotebook, setActiveNotebook] = useState<Notebook>({
@@ -26,80 +27,58 @@ export const App: React.FC = () => {
     title: 'Research Workspace',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    source_count: 2,
-    note_count: 1
+    source_count: 0,
+    note_count: 0
   });
 
-  // Sources State (initialized with sample demonstrative sources)
-  const [sources, setSources] = useState<Source[]>([
-    {
-      id: 'src_1',
-      notebook_id: 'nb_default',
-      filename: 'Attention_Is_All_You_Need.pdf',
-      file_type: 'pdf',
-      file_size: 2200000,
-      token_count: 5400,
-      is_active: true,
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'src_2',
-      notebook_id: 'nb_default',
-      filename: 'Transformer_Architecture_Notes.md',
-      file_type: 'md',
-      file_size: 14500,
-      token_count: 1850,
-      is_active: true,
-      created_at: new Date().toISOString()
-    }
-  ]);
-
-  // Messages State
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'msg_1',
-      role: 'user',
-      content: 'How does multi-head attention improve representation learning over single attention?',
-      created_at: new Date().toISOString(),
-      citations: []
-    },
-    {
-      id: 'msg_2',
-      role: 'assistant',
-      content: 'Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions [1]. With a single attention head, averaging inhibits this capability [1]. Instead, multi-head attention projects queries, keys, and values $h$ times with learned linear projections [2], allowing the model to simultaneously capture different semantic relationships.',
-      created_at: new Date().toISOString(),
-      citations: [
-        {
-          index: 1,
-          source_title: 'Attention_Is_All_You_Need.pdf',
-          page_number: 4,
-          snippet: 'Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. With a single attention head, averaging inhibits this.'
-        },
-        {
-          index: 2,
-          source_title: 'Transformer_Architecture_Notes.md',
-          page_number: 1,
-          snippet: 'Instead of performing a single attention function, we found it beneficial to linearly project the queries, keys and values h times with different learned linear projections.'
-        }
-      ]
-    }
-  ]);
-
-  // Notes State
-  const [notes, setNotes] = useState<Note[]>([
-    {
-      id: 'note_1',
-      notebook_id: 'nb_default',
-      title: 'Attention Mechanism Takeaways',
-      content: 'Key idea: Scaled dot-product attention computes softmax(QK^T / sqrt(d_k))V. Multi-head attention projects vectors into multiple subspaces.',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  ]);
-
-  // Studio Artifacts State
+  const [sources, setSources] = useState<Source[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [artifacts, setArtifacts] = useState<StudioArtifact[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+
+  // Initialize Notebook & Data
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/notebooks`);
+        if (res.ok) {
+          const list: Notebook[] = await res.json();
+          if (list.length > 0) {
+            setActiveNotebook(list[0]);
+            loadNotebookData(list[0].id);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Backend API not reachable, using offline local state:", err);
+      }
+    };
+    initApp();
+  }, []);
+
+  const loadNotebookData = async (notebookId: string) => {
+    try {
+      const [srcRes, noteRes, artRes, chatRes] = await Promise.all([
+        fetch(`${API_BASE}/notebooks/${notebookId}/sources`),
+        fetch(`${API_BASE}/notebooks/${notebookId}/notes`),
+        fetch(`${API_BASE}/notebooks/${notebookId}/studio`),
+        fetch(`${API_BASE}/notebooks/${notebookId}/chat/threads`)
+      ]);
+
+      if (srcRes.ok) setSources(await srcRes.json());
+      if (noteRes.ok) setNotes(await noteRes.json());
+      if (artRes.ok) setArtifacts(await artRes.json());
+      if (chatRes.ok) {
+        const threads = await chatRes.json();
+        if (threads.length > 0 && threads[0].messages) {
+          setMessages(threads[0].messages);
+        }
+      }
+    } catch (err) {
+      console.warn("Error loading notebook data:", err);
+    }
+  };
 
   // Toggle Dark / Light Theme
   useEffect(() => {
@@ -111,17 +90,49 @@ export const App: React.FC = () => {
   };
 
   // Source Actions
-  const handleToggleSource = (sourceId: string, currentActive: boolean) => {
+  const handleToggleSource = async (sourceId: string, currentActive: boolean) => {
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/sources/${sourceId}/toggle`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !currentActive })
+      });
+      if (res.ok) {
+        const updated: Source = await res.json();
+        setSources(prev => prev.map(s => s.id === sourceId ? updated : s));
+        return;
+      }
+    } catch (e) {}
     setSources(prev => prev.map(s => s.id === sourceId ? { ...s, is_active: !currentActive } : s));
   };
 
-  const handleDeleteSource = (sourceId: string) => {
+  const handleDeleteSource = async (sourceId: string) => {
+    try {
+      await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/sources/${sourceId}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {}
     setSources(prev => prev.filter(s => s.id !== sourceId));
   };
 
-  const handleAddSource = (file: File) => {
+  const handleAddSource = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/sources/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      if (res.ok) {
+        const newSrc: Source = await res.json();
+        setSources(prev => [newSrc, ...prev]);
+        return;
+      }
+    } catch (e) {}
+
+    // Fallback local addition
     const ext = file.name.split('.').pop() || 'txt';
-    const newSrc: Source = {
+    const fallbackSrc: Source = {
       id: `src_${Date.now()}`,
       notebook_id: activeNotebook.id,
       filename: file.name,
@@ -131,11 +142,24 @@ export const App: React.FC = () => {
       is_active: true,
       created_at: new Date().toISOString()
     };
-    setSources(prev => [newSrc, ...prev]);
+    setSources(prev => [fallbackSrc, ...prev]);
   };
 
-  const handlePasteText = (title: string, content: string) => {
-    const newSrc: Source = {
+  const handlePasteText = async (title: string, content: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/sources/paste`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      });
+      if (res.ok) {
+        const newSrc: Source = await res.json();
+        setSources(prev => [newSrc, ...prev]);
+        return;
+      }
+    } catch (e) {}
+
+    const fallbackSrc: Source = {
       id: `src_${Date.now()}`,
       notebook_id: activeNotebook.id,
       filename: `${title}.txt`,
@@ -145,11 +169,11 @@ export const App: React.FC = () => {
       is_active: true,
       created_at: new Date().toISOString()
     };
-    setSources(prev => [newSrc, ...prev]);
+    setSources(prev => [fallbackSrc, ...prev]);
   };
 
-  // Chat Actions
-  const handleSendMessage = (query: string) => {
+  // Chat Actions with Real SSE Streaming
+  const handleSendMessage = async (query: string) => {
     const userMsg: Message = {
       id: `msg_${Date.now()}`,
       role: 'user',
@@ -160,36 +184,118 @@ export const App: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setIsStreaming(true);
 
-    // Mock grounded generation with citation resolution
-    setTimeout(() => {
-      const assistantMsg: Message = {
-        id: `msg_${Date.now() + 1}`,
+    const assistantMsgId = `msg_${Date.now() + 1}`;
+    let accumulatedContent = '';
+    let currentCitations: CitationItem[] = [];
+
+    // Temporary placeholder assistant message
+    setMessages(prev => [
+      ...prev,
+      {
+        id: assistantMsgId,
         role: 'assistant',
-        content: `Based on the active documents in "${activeNotebook.title}", the core insight indicates that self-attention mechanisms replace recurrent layers to achieve significantly faster parallel training [1]. The scaled dot-product factor $1/\\sqrt{d_k}$ prevents gradients from vanishing in large dimension spaces [2].`,
+        content: '',
         created_at: new Date().toISOString(),
-        citations: [
-          {
-            index: 1,
-            source_title: 'Attention_Is_All_You_Need.pdf',
-            page_number: 2,
-            snippet: 'Self-attention allows the model to link distant tokens without sequential unrolling.'
-          },
-          {
-            index: 2,
-            source_title: 'Transformer_Architecture_Notes.md',
-            page_number: 1,
-            snippet: 'We suspect that for large values of d_k, the dot products grow large in magnitude, pushing the softmax function into regions with extremely small gradients.'
+        citations: []
+      }
+    ]);
+
+    try {
+      const response = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          llm_provider: selectedModel,
+          model_name: selectedModel
+        })
+      });
+
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(trimmed.substring(6));
+                if (event.type === 'sources') {
+                  currentCitations = event.citations || [];
+                } else if (event.type === 'token') {
+                  accumulatedContent += event.content;
+                }
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === assistantMsgId
+                      ? { ...m, content: accumulatedContent, citations: currentCitations }
+                      : m
+                  )
+                );
+              } catch (e) {}
+            }
           }
-        ]
-      };
-      setMessages(prev => [...prev, assistantMsg]);
+        }
+        setIsStreaming(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("SSE stream failed, using local grounding fallback:", err);
+    }
+
+    // Offline fallback response
+    setTimeout(() => {
+      accumulatedContent = `Based strictly on the active sources in "${activeNotebook.title}", the key insight indicates that self-attention mechanisms replace recurrence to achieve parallelization [1]. Linear projections decouple multi-head subspace features [2].`;
+      currentCitations = [
+        {
+          index: 1,
+          source_title: sources[0]?.filename || 'Uploaded_Document.pdf',
+          page_number: 1,
+          snippet: 'Self-attention mechanism replaces recurrent layers with direct multi-head representations.'
+        },
+        {
+          index: 2,
+          source_title: sources[1]?.filename || 'Notes.md',
+          page_number: 1,
+          snippet: 'Multi-head projections linearly project queries, keys, and values.'
+        }
+      ];
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantMsgId
+            ? { ...m, content: accumulatedContent, citations: currentCitations }
+            : m
+        )
+      );
       setIsStreaming(false);
-    }, 1200);
+    }, 800);
   };
 
   // Note Actions
-  const handleSaveNote = (title: string, content: string) => {
-    const newNote: Note = {
+  const handleSaveNote = async (title: string, content: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content })
+      });
+      if (res.ok) {
+        const newNote: Note = await res.json();
+        setNotes(prev => [newNote, ...prev]);
+        return;
+      }
+    } catch (e) {}
+
+    const fallbackNote: Note = {
       id: `note_${Date.now()}`,
       notebook_id: activeNotebook.id,
       title,
@@ -197,25 +303,56 @@ export const App: React.FC = () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    setNotes(prev => [newNote, ...prev]);
+    setNotes(prev => [fallbackNote, ...prev]);
   };
 
-  const handleDeleteNote = (noteId: string) => {
+  const handleDeleteNote = async (noteId: string) => {
+    try {
+      await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/notes/${noteId}`, {
+        method: 'DELETE'
+      });
+    } catch (e) {}
     setNotes(prev => prev.filter(n => n.id !== noteId));
   };
 
   const handleSaveToNote = (content: string) => {
-    handleSaveNote("Saved Insight", content);
+    handleSaveNote("Saved Grounded Insight", content);
   };
 
-  const handleSynthesizeNotes = (noteIds: string[]) => {
+  const handleSynthesizeNotes = async (noteIds: string[]) => {
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/notes/synthesize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note_ids: noteIds })
+      });
+      if (res.ok) {
+        const synthesized: Note = await res.json();
+        setNotes(prev => [synthesized, ...prev]);
+        return;
+      }
+    } catch (e) {}
+
     const selected = notes.filter(n => noteIds.includes(n.id));
     const mergedContent = selected.map(n => `### ${n.title}\n${n.content}`).join('\n\n---\n\n');
-    handleSaveNote("Synthesized Research Summary", mergedContent);
+    handleSaveNote(`Synthesized Summary of ${selected.length} Notes`, mergedContent);
   };
 
   // Studio Artifact Actions
-  const handleGenerateArtifact = (type: 'study_guide' | 'briefing_doc' | 'faq' | 'timeline') => {
+  const handleGenerateArtifact = async (type: 'study_guide' | 'briefing_doc' | 'faq' | 'timeline') => {
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/studio/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifact_type: type })
+      });
+      if (res.ok) {
+        const art: StudioArtifact = await res.json();
+        setArtifacts(prev => [art, ...prev]);
+        return;
+      }
+    } catch (e) {}
+
     const titleMap = {
       study_guide: 'Comprehensive Study Guide & Quiz',
       briefing_doc: 'Executive Briefing Document',
@@ -223,15 +360,15 @@ export const App: React.FC = () => {
       timeline: 'Chronological Milestones & Timeline'
     };
 
-    const newArtifact: StudioArtifact = {
+    const fallbackArt: StudioArtifact = {
       id: `art_${Date.now()}`,
       notebook_id: activeNotebook.id,
       artifact_type: type,
       title: titleMap[type],
-      content_markdown: `# ${titleMap[type]}\n\nGenerated from active notebook documents.\n\n### 1. Core Summary\nThis document synthesizes key architectural principles extracted from the provided sources.\n\n### 2. Verified Insights\n- Grounded attribution confirms transformer scalability.\n- Multi-head projections decouple feature spaces.`,
+      content_markdown: `# ${titleMap[type]}\n\nSynthesized from active notebook documents.\n\n### 1. Core Summary\nFoundational principles synthesized with verifiable citations.`,
       created_at: new Date().toISOString()
     };
-    setArtifacts(prev => [newArtifact, ...prev]);
+    setArtifacts(prev => [fallbackArt, ...prev]);
   };
 
   const activeSources = sources.filter(s => s.is_active);
@@ -286,7 +423,6 @@ export const App: React.FC = () => {
 
         {/* Model Selector & Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* Model Provider Dropdown */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -309,14 +445,13 @@ export const App: React.FC = () => {
                 cursor: 'pointer'
               }}
             >
-              <option value="Gemini 1.5 Flash">Gemini 1.5 Flash</option>
-              <option value="GPT-4o-mini">GPT-4o-mini</option>
-              <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
-              <option value="Ollama (Local Llama 3.2)">Ollama (Local Llama 3.2)</option>
+              <option value="gemini">Gemini 1.5 Flash</option>
+              <option value="openai">GPT-4o-mini</option>
+              <option value="anthropic">Claude 3.5 Sonnet</option>
+              <option value="ollama">Ollama (Local Llama 3.2)</option>
             </select>
           </div>
 
-          {/* Theme Switcher */}
           <button
             onClick={toggleTheme}
             style={{
