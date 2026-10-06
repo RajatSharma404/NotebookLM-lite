@@ -1,86 +1,151 @@
-/* Theme Design Tokens for NotebookLM-lite */
+/* Editorial Research Desk Design Tokens for NotebookLM-lite */
+
+:root {
+  /* Typography Families */
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-ui: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Typography Scale */
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-32: 32px;
+  --text-56: 56px;
+
+  /* Border Radii */
+  --radius-sm: 6px;       /* 6px controls */
+  --radius-lg: 14px;      /* 14px for the two raised surfaces */
+  --radius-full: 9999px;  /* full only for pills */
+
+  /* Motion */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 400ms;
+  --stagger: 40ms;
+}
 
 :root,
 :root[data-theme="dark"] {
-  /* Surfaces & Backgrounds */
-  --bg-app: #0b0f17;
-  --bg-panel: #111827;
-  --bg-panel-elevated: #1f2937;
-  --bg-hover: #374151;
-  --bg-input: #0f172a;
-  --bg-card: rgba(31, 41, 55, 0.6);
+  /* Dark ("ink") Surfaces */
+  --bg-0: #0C0C0B;
+  --bg-1: #131311;
+  --bg-2: #1B1B18;
 
-  /* Borders & Dividers */
-  --border-subtle: #1e293b;
-  --border-default: #334155;
-  --border-focus: #6366f1;
+  /* Hairline Rules */
+  --line: rgba(242, 238, 226, 0.10);
+  --line-strong: rgba(242, 238, 226, 0.20);
 
-  /* Typography */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-inverse: #0b0f17;
+  /* Typography Colors */
+  --text-1: #F2EEE2;
+  --text-2: #B3AE9F;
+  --text-3: #8A8678;
 
-  /* Brand Accents */
-  --brand-primary: #6366f1;
-  --brand-hover: #4f46e5;
-  --brand-glow: rgba(99, 102, 241, 0.25);
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose: #f43f5e;
+  /* Accents & Signals */
+  --accent: #D6FF3F;
+  --accent-text: #0C0C0B;
+  --signal: #FF5A36;
+  --signal-hover: #ff3b12;
 
-  /* Citations */
-  --citation-bg: rgba(99, 102, 241, 0.15);
-  --citation-border: rgba(99, 102, 241, 0.4);
-  --citation-text: #a5b4fc;
+  /* Focus & Selection */
+  --focus-outline: var(--accent);
+  --selection-bg: var(--accent);
+  --selection-text: #0C0C0B;
 
-  /* Glassmorphism & Shadows */
-  --glass-bg: rgba(17, 24, 39, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  /* Shadow for the two raised surfaces only */
+  --shadow-raised: 0 16px 36px -10px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+
+  /* Compatibility Aliases for components transitioning across phases */
+  --bg-app: var(--bg-0);
+  --bg-panel: var(--bg-1);
+  --bg-panel-elevated: var(--bg-2);
+  --bg-hover: rgba(242, 238, 226, 0.05);
+  --bg-input: var(--bg-0);
+  --bg-card: var(--bg-1);
+  --border-subtle: var(--line);
+  --border-default: var(--line);
+  --border-focus: var(--accent);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
+  --text-inverse: var(--bg-0);
+  --brand-primary: var(--accent);
+  --brand-hover: #b8e026;
+  --brand-glow: rgba(214, 255, 63, 0.2);
+  --accent-cyan: var(--signal);
+  --accent-emerald: var(--accent);
+  --accent-amber: #eab308;
+  --accent-rose: var(--signal);
+  --citation-bg: rgba(214, 255, 63, 0.12);
+  --citation-border: rgba(214, 255, 63, 0.35);
+  --citation-text: var(--accent);
+  --glass-bg: var(--bg-1);
+  --glass-border: var(--line);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: var(--shadow-raised);
 }
 
 :root[data-theme="light"] {
-  /* Surfaces & Backgrounds */
-  --bg-app: #f8fafc;
-  --bg-panel: #ffffff;
-  --bg-panel-elevated: #f1f5f9;
-  --bg-hover: #e2e8f0;
-  --bg-input: #ffffff;
-  --bg-card: rgba(255, 255, 255, 0.85);
+  /* Light ("paper") Surfaces */
+  --bg-0: #F4F0E4;
+  --bg-1: #EDE8DA;
+  --bg-2: #E2DDD0;
 
-  /* Borders & Dividers */
-  --border-subtle: #e2e8f0;
-  --border-default: #cbd5e1;
-  --border-focus: #4f46e5;
+  /* Hairline Rules */
+  --line: rgba(20, 20, 15, 0.10);
+  --line-strong: rgba(20, 20, 15, 0.20);
 
-  /* Typography */
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --text-inverse: #ffffff;
+  /* Typography Colors */
+  --text-1: #14140F;
+  --text-2: #4A473E;
+  --text-3: #7D796D;
 
-  /* Brand Accents */
-  --brand-primary: #4f46e5;
-  --brand-hover: #4338ca;
-  --brand-glow: rgba(79, 70, 229, 0.15);
-  --accent-cyan: #0891b2;
-  --accent-emerald: #059669;
-  --accent-amber: #d97706;
-  --accent-rose: #e11d48;
+  /* Accents & Signals */
+  --accent: #D6FF3F;
+  --accent-text: #4A6200;
+  --signal: #E03510;
+  --signal-hover: #bf2907;
 
-  /* Citations */
-  --citation-bg: #eef2ff;
-  --citation-border: #c7d2fe;
-  --citation-text: #4338ca;
+  /* Focus & Selection */
+  --focus-outline: #14140F;
+  --selection-bg: #14140F;
+  --selection-text: #F4F0E4;
 
-  /* Glassmorphism & Shadows */
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  /* Shadow for the two raised surfaces only */
+  --shadow-raised: 0 16px 36px -10px rgba(20, 20, 15, 0.15), 0 4px 12px -2px rgba(20, 20, 15, 0.10);
+
+  /* Compatibility Aliases */
+  --bg-app: var(--bg-0);
+  --bg-panel: var(--bg-1);
+  --bg-panel-elevated: var(--bg-2);
+  --bg-hover: rgba(20, 20, 15, 0.05);
+  --bg-input: var(--bg-0);
+  --bg-card: var(--bg-1);
+  --border-subtle: var(--line);
+  --border-default: var(--line);
+  --border-focus: var(--text-1);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
+  --text-inverse: var(--bg-0);
+  --brand-primary: #14140F;
+  --brand-hover: var(--accent);
+  --brand-glow: rgba(214, 255, 63, 0.2);
+  --accent-cyan: var(--signal);
+  --accent-emerald: #355200;
+  --accent-amber: #b45309;
+  --accent-rose: var(--signal);
+  --citation-bg: rgba(214, 255, 63, 0.25);
+  --citation-border: rgba(74, 98, 0, 0.35);
+  --citation-text: #364900;
+  --glass-bg: var(--bg-1);
+  --glass-border: var(--line);
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: var(--shadow-raised);
 }
