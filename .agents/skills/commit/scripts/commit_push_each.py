@@ -58,13 +58,19 @@ def main():
 
     successful_commits = 0
 
+    import re
     for idx, line in enumerate(lines, 1):
         if not line.strip():
             continue
         
         # Git porcelain status: XY PATH or XY "PATH"
-        status_part = line[:2].strip()
-        path_part = line[3:].strip()
+        match = re.match(r'^\s*([MADRCU?!]{1,2})\s+(.+)$', line)
+        if match:
+            status_part = match.group(1).strip()
+            path_part = match.group(2).strip()
+        else:
+            status_part = line[:2].strip()
+            path_part = line[2:].strip()
         
         # Strip quotes if present
         if path_part.startswith('"') and path_part.endswith('"'):
