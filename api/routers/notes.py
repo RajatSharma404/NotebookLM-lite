@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from core.database import get_db
 from core.models import Notebook, Note
-from core.schemas import NoteCreate, NoteUpdate, NoteResponse
+from core.schemas import NoteCreate, NoteUpdate, NoteResponse, SynthesizeNotesRequest
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/notes", tags=["Notes"])
 
@@ -50,3 +50,29 @@ def delete_note(notebook_id: str, note_id: str, db: Session = Depends(get_db)):
     db.delete(note)
     db.commit()
     return None
+
+@router.post("/synthesize", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
+def synthesize_notes(
+    notebook_id: str,
+    payload: SynthesizeNotesRequest,
+    db: Session = Depends(get_db)
+):
+    notes = db.query(Note).filter(
+        Note.id.in_(payload.note_ids),
+        Note.notebook_id == notebook_id
+    ).all()
+    if not notes:
+        raise HTTPException(status_code=400, detail="No matching notes found for synthesis")
+
+    combined_text = "\n\n---\n\n".join([f"### {n.title}\n{n.content}" for n in notes])
+    synthesized_content = f"# Synthesized Research Notes\n\nAutomatically synthesized across {len(notes)} personal notes:\n\n{combined_text}"
+
+    new_note = Note(
+        notebook_id=notebook_id,
+        title=f"Synthesis of {len(notes)} Notes",
+        content=synthesized_content
+    )
+    db.add(new_note)
+    db.commit()
+    db.refresh(new_note)
+    return new_note
