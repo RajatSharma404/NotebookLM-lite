@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.env.*
+!.env.example
+
+# Node / Frontend
+node_modules/
+dist/
+.output/
+.cache/
+coverage/
+
+# Database & Storage
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/audio/*
+!storage/audio/.gitkeep
+storage/vector_store/*
+!storage/vector_store/.gitkeep
+*.sqlite
+*.sqlite-journal
+*.db
+*.db-journal
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
