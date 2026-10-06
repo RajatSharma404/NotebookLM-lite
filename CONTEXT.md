@@ -85,3 +85,46 @@ This document maintains a living, structured record of every user prompt, archit
   - [CONTEXT.md](file:///d:/NotebookLM%20lite/CONTEXT.md)
   - `.agents/skills/commit/SKILL.md`
   - `.agents/skills/commit/scripts/commit_push_each.py`
+
+---
+
+### Prompt 5: Phase 1 Foundation, Scaffolding & Configuration
+- **User Intent**: Begin Phase 1 under `/goal` execution without internet or browser, building all foundational backend and frontend scaffolding.
+- **Context & Constraints**: Zero browser/search reliance; establish production-grade modular FastAPI backend and Vite React TypeScript frontend.
+- **Actions Taken**:
+  - Configured `.gitignore` and `.env.example` templates.
+  - Initialized Python backend virtual environment and installed requirements (`fastapi`, `uvicorn`, `pydantic`, `sqlalchemy`, `pypdf`, `pymupdf`, `python-docx`, `rank-bm25`, `edge-tts`, `httpx`, `python-dotenv`).
+  - Built SQLite database models, schemas, and relational architecture (`Notebook`, `Source`, `Chunk`, `ChatThread`, `Message`, `CitationRef`, `Note`, `StudioArtifact`).
+  - Implemented FastAPI routers (`notebooks`, `sources`, `chat`, `notes`, `studio`, `audio`) and verified clean initialization.
+  - Scaffolded Vite React TypeScript frontend with theme tokens, responsive 3-column layout, `<SourcesPanel />`, `<ChatWorkspace />` with inline `<CitationPill />`, and `<StudioPanel />` with `<AudioPlayer />`.
+  - Verified end-to-end frontend production bundle build (`tsc && vite build`).
+- **Files Created / Updated**:
+  - [`.gitignore`](file:///d:/NotebookLM%20lite/.gitignore)
+  - [`.env.example`](file:///d:/NotebookLM%20lite/.env.example)
+  - [`requirements.txt`](file:///d:/NotebookLM%20lite/requirements.txt)
+  - [`core/config.py`](file:///d:/NotebookLM%20lite/core/config.py)
+  - [`core/database.py`](file:///d:/NotebookLM%20lite/core/database.py)
+  - [`core/models.py`](file:///d:/NotebookLM%20lite/core/models.py)
+  - [`core/schemas.py`](file:///d:/NotebookLM%20lite/core/schemas.py)
+  - [`api/main.py`](file:///d:/NotebookLM%20lite/api/main.py)
+  - [`api/routers/notebooks.py`](file:///d:/NotebookLM%20lite/api/routers/notebooks.py)
+  - [`api/routers/sources.py`](file:///d:/NotebookLM%20lite/api/routers/sources.py)
+  - [`api/routers/chat.py`](file:///d:/NotebookLM%20lite/api/routers/chat.py)
+  - [`api/routers/notes.py`](file:///d:/NotebookLM%20lite/api/routers/notes.py)
+  - [`api/routers/studio.py`](file:///d:/NotebookLM%20lite/api/routers/studio.py)
+  - [`api/routers/audio.py`](file:///d:/NotebookLM%20lite/api/routers/audio.py)
+  - [`frontend/package.json`](file:///d:/NotebookLM%20lite/frontend/package.json)
+  - [`frontend/tsconfig.json`](file:///d:/NotebookLM%20lite/frontend/tsconfig.json)
+  - [`frontend/vite.config.ts`](file:///d:/NotebookLM%20lite/frontend/vite.config.ts)
+  - [`frontend/index.html`](file:///d:/NotebookLM%20lite/frontend/index.html)
+  - [`frontend/src/tokens.css`](file:///d:/NotebookLM%20lite/frontend/src/tokens.css)
+  - [`frontend/src/index.css`](file:///d:/NotebookLM%20lite/frontend/src/index.css)
+  - [`frontend/src/types.ts`](file:///d:/NotebookLM%20lite/frontend/src/types.ts)
+  - [`frontend/src/components/CitationPill.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/CitationPill.tsx)
+  - [`frontend/src/components/AudioPlayer.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/AudioPlayer.tsx)
+  - [`frontend/src/components/SourcesPanel.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/SourcesPanel.tsx)
+  - [`frontend/src/components/StudioPanel.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/StudioPanel.tsx)
+  - [`frontend/src/components/ChatWorkspace.tsx`](file:///d:/NotebookLM%20lite/frontend/src/components/ChatWorkspace.tsx)
+  - [`frontend/src/App.tsx`](file:///d:/NotebookLM%20lite/frontend/src/App.tsx)
+  - [`TASK.md`](file:///d:/NotebookLM%20lite/TASK.md)
+
