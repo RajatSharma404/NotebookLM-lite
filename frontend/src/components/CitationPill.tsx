@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { CitationItem } from '../types';
-import { BookOpen, FileText } from 'lucide-react';
 
 interface CitationPillProps {
   index: number;
@@ -10,13 +9,29 @@ interface CitationPillProps {
 export const CitationPill: React.FC<CitationPillProps> = ({ index, citation }) => {
   const [showTooltip, setShowTooltip] = useState(false);
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!citation) return;
+    // Attempt to locate source item in sidebar and highlight briefly
+    const sourceEl = document.querySelector(`[title="${citation.source_title}"]`);
+    if (sourceEl) {
+      sourceEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      sourceEl.classList.add('pulse-highlight');
+      setTimeout(() => sourceEl.classList.remove('pulse-highlight'), 600);
+    }
+  };
+
   return (
     <span 
       style={{ position: 'relative', display: 'inline-block', verticalAlign: 'baseline', margin: '0 2px' }}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      onFocus={() => setShowTooltip(true)}
+      onBlur={() => setShowTooltip(false)}
     >
       <button
+        onClick={handleClick}
+        className="mono"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -24,15 +39,16 @@ export const CitationPill: React.FC<CitationPillProps> = ({ index, citation }) =
           backgroundColor: 'var(--citation-bg)',
           color: 'var(--citation-text)',
           border: '1px solid var(--citation-border)',
-          borderRadius: '10px',
-          padding: '0 6px',
+          borderRadius: '3px',
+          padding: '0 4px',
           fontSize: '11px',
           fontWeight: 600,
           cursor: 'pointer',
-          lineHeight: '18px',
-          transition: 'all 0.15s ease'
+          lineHeight: '14px',
+          verticalAlign: 'super',
+          transition: 'border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out)'
         }}
-        aria-label={`Citation ${index}`}
+        aria-label={`Citation ${index}: ${citation?.source_title || 'Source'} (Page ${citation?.page_number || 1})`}
       >
         {index}
       </button>
@@ -41,38 +57,47 @@ export const CitationPill: React.FC<CitationPillProps> = ({ index, citation }) =
         <div
           style={{
             position: 'absolute',
-            bottom: '120%',
+            bottom: 'calc(100% + 6px)',
             left: '50%',
             transform: 'translateX(-50%)',
             width: '280px',
-            backgroundColor: 'var(--bg-panel-elevated)',
-            border: '1px solid var(--border-default)',
-            borderRadius: '8px',
+            backgroundColor: 'var(--bg-2)',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 'var(--radius-sm)',
             padding: '10px 12px',
-            boxShadow: 'var(--shadow-lg)',
+            boxShadow: 'var(--shadow-raised)',
             zIndex: 1000,
-            color: 'var(--text-primary)',
+            color: 'var(--text-1)',
             fontSize: '12px',
             pointerEvents: 'none'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: 'var(--brand-primary)', fontWeight: 600 }}>
-            <FileText size={14} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px', marginBottom: '6px' }}>
+            <span
+              className="mono"
+              style={{
+                fontWeight: 600,
+                fontSize: '11px',
+                color: 'var(--accent)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
               {citation.source_title}
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-              (p. {citation.page_number})
+            <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', flexShrink: 0 }}>
+              p. {citation.page_number}
             </span>
           </div>
           <div style={{
             fontSize: '11px',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.4,
-            borderLeft: '2px solid var(--brand-primary)',
+            color: 'var(--text-2)',
+            lineHeight: 1.5,
+            borderLeft: '2px solid var(--accent)',
             paddingLeft: '8px',
             fontStyle: 'italic',
-            maxHeight: '120px',
+            maxHeight: '100px',
             overflowY: 'hidden'
           }}>
             "{citation.snippet}"
