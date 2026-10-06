@@ -4,14 +4,14 @@
 ---
 
 ## Phase 1: Foundation, Scaffolding & Configuration
-- [ ] **Task 1.1: Backend Structure Setup**
+- [x] **Task 1.1: Backend Structure Setup**
   - Initialize Python FastAPI project with virtual environment and pyproject/requirements (`fastapi`, `uvicorn`, `pydantic`, `sqlalchemy`, `chromadb`, `rank-bm25`, `edge-tts`, `pypdf`, `python-docx`).
   - Create directory layout: `api/`, `core/ingest/`, `core/rag/`, `core/studio/`, `core/audio/`, `storage/`.
   - Configure `.env.example` and environment loader with multi-provider keys (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL`).
-- [ ] **Task 1.2: Database & Storage Engine**
+- [x] **Task 1.2: Database & Storage Engine**
   - Setup SQLite metadata schema with SQLAlchemy/SQLModel for `Notebook`, `Source`, `Chunk`, `ChatThread`, `Message`, `CitationRef`, `Note`, and `StudioArtifact`.
   - Implement database initialization script and migrations.
-- [ ] **Task 1.3: Frontend Client Setup**
+- [x] **Task 1.3: Frontend Client Setup**
   - Scaffold Vite React TypeScript app in `frontend/` directory.
   - Implement base Design System CSS (`tokens.css`, `index.css`) with light/dark theme variables from [DESIGN.md](file:///d:/NotebookLM%20lite/DESIGN.md).
   - Install core UI libraries (`lucide-react`, `markdown-it`, `katex`).
