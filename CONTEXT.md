@@ -203,5 +203,28 @@ This document maintains a living, structured record of every user prompt, archit
   - [`TASK.md`](file:///d:/NotebookLM%20lite/TASK.md)
   - [`CONTEXT.md`](file:///d:/NotebookLM%20lite/CONTEXT.md)
 
+---
+
+### Prompt 9: Document Explanation Engine Fix & Server Reconnection
+- **User Intent**: User reported that the app was not reading uploaded documents and not explaining them.
+- **Root Causes Diagnosed**:
+  1. System restart had terminated background server processes (FastAPI backend port 8000 and Vite dev server port 5173 were offline).
+  2. Fallback local synthesizer in `core/rag/providers.py` was a naive single-sentence extractor, outputting only 1 raw sentence fragment when no external LLM API key was configured.
+  3. Frontend fetch failure fallback had a hardcoded generic string about self-attention rather than notifying the user of connection state.
+- **Actions Taken**:
+  - Engineered a high-accuracy Grounded Local Comprehension Engine in `core/rag/providers.py` that parses retrieved document passages, identifies whether the user wants an overview/explanation or specific query answer, synthesizes multi-section structured summaries (Objectives, Architectural Breakdown, Critical Takeaways), and tags accurate `[1]`, `[2]` inline citations.
+  - Implemented `/api/settings` endpoint in `api/routers/settings.py` for dynamic `.env` configuration of Gemini, OpenAI, and Ollama credentials.
+  - Added a Settings modal in `frontend/src/App.tsx` accessible via a header gear icon, allowing one-click configuration of free Google Gemini 1.5 Flash API keys.
+  - Restarted and verified both the FastAPI backend daemon (127.0.0.1:8000) and Vite frontend dev server (127.0.0.1:5173).
+  - Tested retrieval and streaming against the user's uploaded `AI ENGINNER Projects Roadmap.pdf`, verifying comprehensive multi-section explanation and citations.
+- **Files Created / Modified**:
+  - [`api/routers/settings.py`](file:///d:/NotebookLM%20lite/api/routers/settings.py)
+  - [`api/main.py`](file:///d:/NotebookLM%20lite/api/main.py)
+  - [`core/rag/providers.py`](file:///d:/NotebookLM%20lite/core/rag/providers.py)
+  - [`frontend/src/App.tsx`](file:///d:/NotebookLM%20lite/frontend/src/App.tsx)
+  - [`TASK.md`](file:///d:/NotebookLM%20lite/TASK.md)
+  - [`CONTEXT.md`](file:///d:/NotebookLM%20lite/CONTEXT.md)
+
+
 
 
