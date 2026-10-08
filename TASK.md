@@ -157,3 +157,16 @@
   - Interactive canvas waveform scrubber (waveform IS the scrubber, no range input), host avatars (Alex/Morgan), 46px signal play button, segmented speed pills.
   - Minimal editorial tablist (`STUDIO` / `NOTES`), 2x2 clickable generator tiles, hairline artifact ledger, and manuscript modal viewer.
 
+---
+
+## Phase 11: LLM Engine Reliability, Local Comprehension & Settings Modal
+- [x] **Task 11.1: Settings API & Dynamic Provider Credentials**
+  - Implement `/api/settings` GET and POST endpoint for persistent `.env` updates (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_BASE_URL`).
+  - Add Settings Modal in frontend with credential management, free Gemini API link, and active key indicator.
+- [x] **Task 11.2: High-Quality Grounded Local Comprehension Engine**
+  - Replace naive 1-sentence placeholder fallback with structured synthesis engine.
+  - Identify overview vs. targeted queries, extract objectives, architectural breakdown, and critical takeaways with verifiable `[1]`, `[2]` citations.
+- [x] **Task 11.3: Background Process Health & Reconnection**
+  - Restarted and verified background FastAPI (port 8000) and Vite (port 5173) services following server restart.
+
+
