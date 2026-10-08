@@ -3,7 +3,7 @@ import { Notebook, Source, Message, Note, StudioArtifact, CitationItem } from '.
 import { SourcesPanel } from './components/SourcesPanel';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { StudioPanel } from './components/StudioPanel';
-import { Moon, Sun, Check, ChevronDown } from 'lucide-react';
+import { Moon, Sun, Check, ChevronDown, Settings as SettingsIcon, Key, ExternalLink, X, AlertCircle } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -13,6 +13,14 @@ export const App: React.FC = () => {
   const [rightOpen, setRightOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+
+  // Settings Modal State
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [ollamaUrl, setOllamaUrl] = useState('http://127.0.0.1:11434');
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [keyConfigured, setKeyConfigured] = useState(false);
 
   // Active Notebook State
   const [activeNotebook, setActiveNotebook] = useState<Notebook>({
@@ -29,6 +37,7 @@ export const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [artifacts, setArtifacts] = useState<StudioArtifact[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+
 
   // Initialize Notebook & Data
   useEffect(() => {
@@ -48,7 +57,41 @@ export const App: React.FC = () => {
       }
     };
     initApp();
+
+    // Fetch API Key / Settings status
+    fetch(`${API_BASE}/settings`)
+      .then(r => r.json())
+      .then(data => {
+        setKeyConfigured(Boolean(data.gemini_api_key_configured || data.openai_api_key_configured));
+        if (data.ollama_base_url) setOllamaUrl(data.ollama_base_url);
+        if (data.default_llm_provider) setSelectedModel(data.default_llm_provider);
+      })
+      .catch(() => {});
   }, []);
+
+  const handleSaveSettings = async () => {
+    try {
+      await fetch(`${API_BASE}/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gemini_api_key: geminiApiKey || undefined,
+          openai_api_key: openaiApiKey || undefined,
+          ollama_base_url: ollamaUrl || undefined,
+          default_llm_provider: selectedModel
+        })
+      });
+      setSettingsSaved(true);
+      setKeyConfigured(Boolean(geminiApiKey || openaiApiKey));
+      setTimeout(() => {
+        setSettingsSaved(false);
+        setSettingsModalOpen(false);
+      }, 1000);
+    } catch (e) {
+      console.error("Failed to save settings:", e);
+    }
+  };
+
 
   const loadNotebookData = async (notebookId: string) => {
     try {
@@ -241,36 +284,20 @@ export const App: React.FC = () => {
         return;
       }
     } catch (err) {
-      console.warn("SSE stream failed, using local grounding fallback:", err);
-    }
-
-    // Offline fallback response
-    setTimeout(() => {
-      accumulatedContent = `Based strictly on the active sources in "${activeNotebook.title}", the key insight indicates that self-attention mechanisms replace recurrence to achieve parallelization [1]. Linear projections decouple multi-head subspace features [2].`;
-      currentCitations = [
-        {
-          index: 1,
-          source_title: sources[0]?.filename || 'Uploaded_Document.pdf',
-          page_number: 1,
-          snippet: 'Self-attention mechanism replaces recurrent layers with direct multi-head representations.'
-        },
-        {
-          index: 2,
-          source_title: sources[1]?.filename || 'Notes.md',
-          page_number: 1,
-          snippet: 'Multi-head projections linearly project queries, keys, and values.'
-        }
-      ];
+      console.warn("SSE stream failed:", err);
+      accumulatedContent = `⚠️ Unable to communicate with the FastAPI backend (http://127.0.0.1:8000). Please ensure the backend server is running.\n\nOnce running, ask again to synthesize and explain "${activeNotebook.title}".`;
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantMsgId
-            ? { ...m, content: accumulatedContent, citations: currentCitations }
+            ? { ...m, content: accumulatedContent, citations: [] }
             : m
         )
       );
       setIsStreaming(false);
-    }, 800);
+      return;
+    }
   };
+
 
   // Note Actions
   const handleSaveNote = async (title: string, content: string) => {
@@ -511,6 +538,39 @@ export const App: React.FC = () => {
             )}
           </div>
 
+          {/* Settings / API Key Button */}
+          <button
+            onClick={() => setSettingsModalOpen(true)}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: 'var(--radius-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: keyConfigured ? 'var(--accent)' : 'var(--text-2)',
+              position: 'relative',
+              transition: 'color var(--duration-fast) var(--ease-out)'
+            }}
+            aria-label="Settings and API Keys"
+            title="Configure AI Models & API Keys"
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-1)'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = keyConfigured ? 'var(--accent)' : 'var(--text-2)'}
+          >
+            <SettingsIcon size={16} />
+            {keyConfigured && (
+              <span style={{
+                position: 'absolute',
+                top: '7px',
+                right: '7px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--accent)'
+              }} />
+            )}
+          </button>
+
           {/* 36px Ghost Theme Toggle Button */}
           <button
             onClick={toggleTheme}
@@ -537,6 +597,7 @@ export const App: React.FC = () => {
           </button>
         </div>
       </header>
+
 
       {/* Main Unequal 3-Pane Shell (Separated by 1px rules, no gaps, no card wrappers) */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
@@ -696,8 +757,192 @@ export const App: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Settings Modal */}
+      {settingsModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 3000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-1)',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 'var(--radius-lg)',
+            width: '520px',
+            maxWidth: '100%',
+            boxShadow: 'var(--shadow-overlay)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <span className="mono" style={{ fontSize: '10px', letterSpacing: '0.12em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+                  PREFERENCES & CREDENTIALS
+                </span>
+                <h3 className="serif" style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text-1)', marginTop: '2px' }}>
+                  Model & API Settings
+                </h3>
+              </div>
+
+              <button
+                onClick={() => setSettingsModalOpen(false)}
+                style={{
+                  color: 'var(--text-3)',
+                  padding: '6px',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Gemini Key */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label className="mono" style={{ fontSize: '11px', color: 'var(--text-1)', fontWeight: 600 }}>
+                    Google Gemini API Key
+                  </label>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: '11px', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                  >
+                    Get free key <ExternalLink size={11} />
+                  </a>
+                </div>
+                <input
+                  type="password"
+                  value={geminiApiKey}
+                  onChange={e => setGeminiApiKey(e.target.value)}
+                  placeholder="AIzaSy... (Paste Gemini API Key)"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-0)',
+                    border: '1px solid var(--line)',
+                    color: 'var(--text-1)',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                />
+                <p style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>
+                  Recommended: Powers Gemini 1.5 Flash for deep conversational synthesis.
+                </p>
+              </div>
+
+              {/* OpenAI Key */}
+              <div>
+                <label className="mono" style={{ display: 'block', fontSize: '11px', color: 'var(--text-1)', fontWeight: 600, marginBottom: '6px' }}>
+                  OpenAI API Key (Optional)
+                </label>
+                <input
+                  type="password"
+                  value={openaiApiKey}
+                  onChange={e => setOpenaiApiKey(e.target.value)}
+                  placeholder="sk-... (Paste OpenAI API Key)"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-0)',
+                    border: '1px solid var(--line)',
+                    color: 'var(--text-1)',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                />
+              </div>
+
+              {/* Ollama URL */}
+              <div>
+                <label className="mono" style={{ display: 'block', fontSize: '11px', color: 'var(--text-1)', fontWeight: 600, marginBottom: '6px' }}>
+                  Ollama Base URL (Local Offline)
+                </label>
+                <input
+                  type="text"
+                  value={ollamaUrl}
+                  onChange={e => setOllamaUrl(e.target.value)}
+                  placeholder="http://127.0.0.1:11434"
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'var(--bg-0)',
+                    border: '1px solid var(--line)',
+                    color: 'var(--text-1)',
+                    fontSize: '13px',
+                    fontFamily: 'var(--font-mono)'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid var(--line)',
+              backgroundColor: 'var(--bg-0)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                {keyConfigured ? '✓ Active API key configured' : 'Using Grounded Local Synthesizer'}
+              </span>
+
+              <button
+                onClick={handleSaveSettings}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: settingsSaved ? 'var(--bg-2)' : 'var(--accent)',
+                  color: settingsSaved ? 'var(--text-1)' : 'var(--ink)',
+                  border: '1px solid var(--line-strong)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all var(--duration-fast) var(--ease-out)'
+                }}
+              >
+                {settingsSaved ? <Check size={14} color="var(--accent)" /> : <Key size={14} />}
+                <span>{settingsSaved ? 'Saved & Connected!' : 'Save & Connect'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default App;
+
