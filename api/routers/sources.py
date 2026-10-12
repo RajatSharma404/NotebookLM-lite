@@ -28,17 +28,37 @@ async def upload_source(
     if not nb:
         raise HTTPException(status_code=404, detail="Notebook not found")
 
-    # Save to temporary file for parsing
-    suffix = Path(file.filename or "temp.txt").suffix
+    # Validate and sanitize filename to prevent directory traversal
+    import re
+    raw_filename = file.filename or "uploaded_document.txt"
+    safe_filename = os.path.basename(raw_filename).replace("\x00", "")
+    safe_filename = re.sub(r'[^\w\s\.\-_()\[\]]', '_', safe_filename).strip()
+    if not safe_filename:
+        safe_filename = "document.txt"
+
+    suffix = Path(safe_filename).suffix.lower()
+    allowed_suffixes = {".pdf", ".md", ".txt", ".markdown", ".docx", ".doc"}
+    if suffix not in allowed_suffixes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file format '{suffix}'. Supported types: PDF, Markdown (.md), Plain Text (.txt), Word (.docx)"
+        )
+
+    # Read and validate file content
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    if len(content) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File size exceeds 50MB maximum limit.")
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        content = await file.read()
         tmp.write(content)
         tmp_path = Path(tmp.name)
 
     try:
         source = IngestionPipeline.process_file(
             notebook_id=notebook_id,
-            filename=file.filename or "uploaded_document",
+            filename=safe_filename,
             temp_file_path=tmp_path,
             db=db
         )
@@ -64,6 +84,7 @@ def paste_source(
         db=db
     )
 
+@router.patch("/{source_id}", response_model=SourceResponse)
 @router.patch("/{source_id}/toggle", response_model=SourceResponse)
 def toggle_source(notebook_id: str, source_id: str, payload: SourceToggleRequest, db: Session = Depends(get_db)):
     source = db.query(Source).filter(Source.id == source_id, Source.notebook_id == notebook_id).first()
