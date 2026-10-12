@@ -52,7 +52,7 @@ def delete_note(notebook_id: str, note_id: str, db: Session = Depends(get_db)):
     return None
 
 @router.post("/synthesize", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
-def synthesize_notes(
+async def synthesize_notes(
     notebook_id: str,
     payload: SynthesizeNotesRequest,
     db: Session = Depends(get_db)
@@ -64,8 +64,25 @@ def synthesize_notes(
     if not notes:
         raise HTTPException(status_code=400, detail="No matching notes found for synthesis")
 
-    combined_text = "\n\n---\n\n".join([f"### {n.title}\n{n.content}" for n in notes])
-    synthesized_content = f"# Synthesized Research Notes\n\nAutomatically synthesized across {len(notes)} personal notes:\n\n{combined_text}"
+    combined_text = "\n\n---\n\n".join([f"### Note: {n.title}\n{n.content}" for n in notes])
+    
+    prompt = f"Synthesize these {len(notes)} related research notes into a cohesive summary with Key Themes, Connected Insights, and Actionable Takeaways:\n\n{combined_text}"
+    system_instruction = (
+        "You are an expert research synthesizer. Merge the provided user notes into an interconnected synthesis report. "
+        "Highlight cross-cutting themes, resolve contradictions, and format in clean Markdown with clear headings."
+    )
+
+    from core.rag.providers import LLMProvider
+    tokens = []
+    try:
+        async for token in LLMProvider.stream_response(prompt=prompt, system_instruction=system_instruction):
+            tokens.append(token)
+        synthesized_content = "".join(tokens).strip()
+    except Exception:
+        synthesized_content = f"# Synthesized Research Notes\n\nAutomatically compiled across {len(notes)} personal notes:\n\n{combined_text}"
+
+    if not synthesized_content:
+        synthesized_content = f"# Synthesized Research Notes\n\nCompiled across {len(notes)} personal notes:\n\n{combined_text}"
 
     new_note = Note(
         notebook_id=notebook_id,
