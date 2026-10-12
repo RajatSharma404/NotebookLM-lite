@@ -3,7 +3,7 @@ import { Notebook, Source, Message, Note, StudioArtifact, CitationItem } from '.
 import { SourcesPanel } from './components/SourcesPanel';
 import { ChatWorkspace } from './components/ChatWorkspace';
 import { StudioPanel } from './components/StudioPanel';
-import { Moon, Sun, Check, ChevronDown, Settings as SettingsIcon, Key, ExternalLink, X, AlertCircle } from 'lucide-react';
+import { Moon, Sun, Check, ChevronDown, Settings as SettingsIcon, Key, ExternalLink, X, AlertCircle, Download, Plus, BookOpen } from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -22,6 +22,12 @@ export const App: React.FC = () => {
   const [settingsSaved, setSettingsSaved] = useState(false);
   const [keyConfigured, setKeyConfigured] = useState(false);
 
+  // Notebooks Management State
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [notebookDropdownOpen, setNotebookDropdownOpen] = useState(false);
+  const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
+  const [newNotebookTitle, setNewNotebookTitle] = useState('');
+
   // Active Notebook State
   const [activeNotebook, setActiveNotebook] = useState<Notebook>({
     id: 'nb_default',
@@ -37,6 +43,7 @@ export const App: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [artifacts, setArtifacts] = useState<StudioArtifact[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
 
   // Initialize Notebook & Data
@@ -46,6 +53,7 @@ export const App: React.FC = () => {
         const res = await fetch(`${API_BASE}/notebooks`);
         if (res.ok) {
           const list: Notebook[] = await res.json();
+          setNotebooks(list);
           if (list.length > 0) {
             setActiveNotebook(list[0]);
             loadNotebookData(list[0].id);
@@ -69,6 +77,48 @@ export const App: React.FC = () => {
       .catch(() => {});
   }, []);
 
+  const handleCreateNotebook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNotebookTitle.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE}/notebooks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newNotebookTitle.trim() })
+      });
+      if (res.ok) {
+        const created: Notebook = await res.json();
+        setNotebooks(prev => [created, ...prev]);
+        setActiveNotebook(created);
+        setSources([]);
+        setMessages([]);
+        setNotes([]);
+        setArtifacts([]);
+        setNewNotebookTitle('');
+        setIsCreatingNotebook(false);
+        setNotebookDropdownOpen(false);
+      }
+    } catch (err) {
+      console.error("Failed to create notebook:", err);
+    }
+  };
+
+  const handleSelectNotebook = (nb: Notebook) => {
+    setActiveNotebook(nb);
+    setNotebookDropdownOpen(false);
+    loadNotebookData(nb.id);
+  };
+
+  const handleExportNotebook = () => {
+    const downloadUrl = `${API_BASE}/notebooks/${activeNotebook.id}/export`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = `${activeNotebook.title}_export.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const handleSaveSettings = async () => {
     try {
       await fetch(`${API_BASE}/settings`, {
@@ -91,6 +141,29 @@ export const App: React.FC = () => {
       console.error("Failed to save settings:", e);
     }
   };
+
+  // Global Keyboard Shortcuts (Ctrl/Cmd+B for Sources, Ctrl/Cmd+J for Studio, Escape for modals)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setLeftOpen(prev => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setRightOpen(prev => !prev);
+      } else if (e.key === 'Escape') {
+        setNotebookDropdownOpen(false);
+        setModelDropdownOpen(false);
+        setSettingsModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
 
   const loadNotebookData = async (notebookId: string) => {
@@ -390,6 +463,36 @@ export const App: React.FC = () => {
     setArtifacts(prev => [fallbackArt, ...prev]);
   };
 
+  const handleGenerateAudio = async () => {
+    setIsGeneratingAudio(true);
+    try {
+      const res = await fetch(`${API_BASE}/notebooks/${activeNotebook.id}/audio/generate`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const art: StudioArtifact = await res.json();
+        setArtifacts(prev => [art, ...prev]);
+        return;
+      }
+    } catch (e) {
+      console.warn("Failed to generate audio overview:", e);
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+
+    // Offline fallback artifact
+    const fallbackAudio: StudioArtifact = {
+      id: `art_audio_${Date.now()}`,
+      notebook_id: activeNotebook.id,
+      artifact_type: 'audio_overview',
+      title: 'Audio Overview: Two-Host Deep Dive',
+      content_markdown: '# Audio Overview (Podcast Deep Dive)\n\n### Hosts: Alex & Morgan\n\n**Alex**: Welcome back! Today we are exploring the documents uploaded into this notebook.\n\n**Morgan**: The insights here are really compelling and directly grounded!',
+      media_url: undefined,
+      created_at: new Date().toISOString()
+    };
+    setArtifacts(prev => [fallbackAudio, ...prev]);
+  };
+
   const activeSources = sources.filter(s => s.is_active);
   const totalTokens = activeSources.reduce((acc, s) => acc + (s.token_count || 0), 0);
 
@@ -437,25 +540,198 @@ export const App: React.FC = () => {
 
           <span className="mono" style={{ color: 'var(--text-3)', fontSize: '13px' }}>/</span>
 
-          {/* Notebook Title in Serif (truncated) */}
-          <span
-            className="serif"
-            title={activeNotebook.title}
-            style={{
-              fontSize: '17px',
-              color: 'var(--text-2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              maxWidth: '320px'
-            }}
-          >
-            {activeNotebook.title}
-          </span>
+          {/* Interactive Notebook Selector with Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setNotebookDropdownOpen(!notebookDropdownOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid transparent',
+                backgroundColor: 'transparent',
+                cursor: 'pointer',
+                transition: 'background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out)'
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--line)';
+                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-2)';
+              }}
+              onMouseLeave={e => {
+                if (!notebookDropdownOpen) {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
+                  (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                }
+              }}
+              title="Switch or create notebooks"
+              aria-expanded={notebookDropdownOpen}
+            >
+              <span
+                className="serif"
+                style={{
+                  fontSize: '17px',
+                  color: 'var(--text-1)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '260px'
+                }}
+              >
+                {activeNotebook.title}
+              </span>
+              <ChevronDown size={13} style={{ color: 'var(--text-3)', transform: notebookDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform var(--duration-fast) var(--ease-out)' }} />
+            </button>
+
+            {notebookDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  width: '280px',
+                  backgroundColor: 'var(--bg-2)',
+                  border: '1px solid var(--line-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: 'var(--shadow-raised)',
+                  padding: '8px',
+                  zIndex: 200
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', padding: '0 4px' }}>
+                  <span className="mono" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-3)' }}>Notebooks</span>
+                  <button
+                    onClick={() => setIsCreatingNotebook(!isCreatingNotebook)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '11px',
+                      color: 'var(--accent)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Plus size={12} />
+                    <span>New</span>
+                  </button>
+                </div>
+
+                {isCreatingNotebook && (
+                  <form onSubmit={handleCreateNotebook} style={{ marginBottom: '8px', padding: '0 4px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <input
+                        type="text"
+                        autoFocus
+                        placeholder="Notebook title..."
+                        value={newNotebookTitle}
+                        onChange={e => setNewNotebookTitle(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          backgroundColor: 'var(--bg-1)',
+                          border: '1px solid var(--line)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-1)'
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        className="mono"
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          backgroundColor: 'var(--accent)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          fontWeight: 600
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {notebooks.map((nb) => {
+                    const isSelected = nb.id === activeNotebook.id;
+                    return (
+                      <button
+                        key={nb.id}
+                        onClick={() => handleSelectNotebook(nb)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: 'none',
+                          backgroundColor: isSelected ? 'var(--bg-hover)' : 'transparent',
+                          color: isSelected ? 'var(--text-1)' : 'var(--text-2)',
+                          fontSize: '13px',
+                          textAlign: 'left',
+                          cursor: 'pointer'
+                        }}
+                        onMouseEnter={e => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                        }}
+                        onMouseLeave={e => {
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                          <BookOpen size={13} style={{ color: isSelected ? 'var(--accent)' : 'var(--text-3)', flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nb.title}</span>
+                        </div>
+                        {isSelected && <Check size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right: Model Selector & Theme Toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Export Notebook ZIP Archive Button */}
+          <button
+            onClick={handleExportNotebook}
+            className="mono"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--line)',
+              backgroundColor: 'transparent',
+              fontSize: '12px',
+              color: 'var(--text-2)',
+              cursor: 'pointer',
+              transition: 'border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)'
+            }}
+            aria-label="Export Notebook Archive"
+            title="Export notebook (Sources, Notes, Transcripts, Studio Artifacts) as ZIP"
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--line-strong)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-1)';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.borderColor = 'var(--line)';
+              (e.currentTarget as HTMLElement).style.color = 'var(--text-2)';
+            }}
+          >
+            <Download size={13} />
+            <span>Export</span>
+          </button>
           {/* Compact Model Selector with Popover */}
           <div style={{ position: 'relative' }}>
             <button
@@ -615,6 +891,7 @@ export const App: React.FC = () => {
           {leftOpen ? (
             <SourcesPanel
               sources={sources}
+              activeNotebookId={activeNotebook.id}
               onToggleSource={handleToggleSource}
               onDeleteSource={handleDeleteSource}
               onAddSource={handleAddSource}
@@ -723,6 +1000,8 @@ export const App: React.FC = () => {
               onSaveNote={handleSaveNote}
               onDeleteNote={handleDeleteNote}
               onSynthesizeNotes={handleSynthesizeNotes}
+              onGenerateAudio={handleGenerateAudio}
+              isGeneratingAudio={isGeneratingAudio}
             />
           ) : (
             <div
