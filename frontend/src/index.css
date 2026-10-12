@@ -1,4 +1,5 @@
 @import './tokens.css';
+@import 'katex/dist/katex.min.css';
 
 *, *::before, *::after {
   box-sizing: border-box;
