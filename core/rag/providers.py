@@ -48,7 +48,19 @@ class LLMProvider:
             except Exception as e:
                 yield f"*(OpenAI stream error: {str(e)[:120]}. Falling back to local synthesizer...)*\n\n"
 
-        # 3. Ollama (Local) Provider
+        # 3. Anthropic Claude Provider
+        if provider == "anthropic" and settings.ANTHROPIC_API_KEY:
+            try:
+                success = False
+                async for token in cls._stream_anthropic(prompt, system_instruction, settings.ANTHROPIC_API_KEY, model or "claude-3-5-sonnet-20241022"):
+                    success = True
+                    yield token
+                if success:
+                    return
+            except Exception as e:
+                yield f"*(Anthropic stream error: {str(e)[:120]}. Falling back to local synthesizer...)*\n\n"
+
+        # 4. Ollama (Local) Provider
         if provider == "ollama":
             try:
                 success = False
@@ -60,7 +72,7 @@ class LLMProvider:
             except Exception as e:
                 yield f"*(Ollama connection error: {str(e)[:120]}. Falling back to local synthesizer...)*\n\n"
 
-        # 4. Built-in Deterministic Grounded Comprehension Engine
+        # 5. Built-in Deterministic Grounded Comprehension Engine
         async for token in cls._stream_local_synthesizer(prompt, system_instruction):
             yield token
 
@@ -124,6 +136,44 @@ class LLMProvider:
                                 yield content
                         except Exception:
                             pass
+
+    @classmethod
+    async def _stream_anthropic(cls, prompt: str, system_instruction: str, api_key: str, model: str) -> AsyncGenerator[str, None]:
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "max_tokens": 4096,
+            "system": system_instruction,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "stream": True
+        }
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                if response.status_code != 200:
+                    err_body = await response.aread()
+                    raise RuntimeError(f"HTTP {response.status_code}: {err_body.decode('utf-8', errors='ignore')[:200]}")
+
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str:
+                            try:
+                                data = json.loads(data_str)
+                                event_type = data.get("type")
+                                if event_type == "content_block_delta":
+                                    delta = data.get("delta", {})
+                                    text = delta.get("text", "")
+                                    if text:
+                                        yield text
+                            except Exception:
+                                pass
 
     @classmethod
     async def _stream_ollama(cls, prompt: str, system_instruction: str, model: str) -> AsyncGenerator[str, None]:
