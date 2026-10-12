@@ -14,11 +14,16 @@ class SettingsUpdateRequest(BaseModel):
 
 @router.get("")
 def get_settings():
+    def preview(key: str) -> str:
+        return f"{key[:4]}...{key[-4:]}" if len(key) > 8 else ("configured" if key else "")
+
     return {
         "gemini_api_key_configured": bool(settings.GEMINI_API_KEY),
-        "gemini_api_key_preview": f"{settings.GEMINI_API_KEY[:4]}...{settings.GEMINI_API_KEY[-4:]}" if len(settings.GEMINI_API_KEY) > 8 else "",
+        "gemini_api_key_preview": preview(settings.GEMINI_API_KEY),
         "openai_api_key_configured": bool(settings.OPENAI_API_KEY),
+        "openai_api_key_preview": preview(settings.OPENAI_API_KEY),
         "anthropic_api_key_configured": bool(settings.ANTHROPIC_API_KEY),
+        "anthropic_api_key_preview": preview(settings.ANTHROPIC_API_KEY),
         "ollama_base_url": settings.OLLAMA_BASE_URL,
         "default_llm_provider": settings.DEFAULT_LLM_PROVIDER
     }
