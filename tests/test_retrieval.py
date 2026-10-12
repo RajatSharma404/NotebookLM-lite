@@ -1,76 +1,80 @@
-from core.database import init_db, SessionLocal
+import pytest
 from core.models import Notebook, Source
 from core.ingest.pipeline import IngestionPipeline
 from core.rag.retriever import HybridRetriever
 
-def run_test():
-    init_db()
-    db = SessionLocal()
-
-    try:
-        nb = Notebook(title="Hybrid RAG Test Notebook")
-        db.add(nb)
-        db.commit()
-        db.refresh(nb)
-
-        # Ingest Document 1: Transformer & Attention
-        doc1_text = """# Attention Mechanisms
+def test_hybrid_retrieval_semantic_matching(db_session, test_notebook):
+    """Test dense and sparse hybrid retrieval matches semantic questions."""
+    doc1_text = """# Attention Mechanisms
 Multi-head attention (MHA) allows the model to jointly attend to information from different representation subspaces.
 Instead of performing a single attention function, we project queries, keys, and values h times with learned linear projections.
 The scaled dot-product factor 1/sqrt(d_k) prevents gradients from vanishing in high dimension spaces.
 """
-        src1 = IngestionPipeline.process_pasted_text(
-            notebook_id=nb.id,
-            title="Attention_Paper",
-            content=doc1_text,
-            db=db
-        )
+    IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="Attention_Paper",
+        content=doc1_text,
+        db=db_session
+    )
 
-        # Ingest Document 2: Reinforcement Learning
-        doc2_text = """# Reinforcement Learning
+    query = "How does multi-head attention project queries and keys?"
+    context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
+
+    assert len(citations) > 0, "Should retrieve at least 1 citation"
+    assert "Attention_Paper" in citations[0]["source_title"]
+    assert citations[0]["index"] == 1
+    assert "attention" in citations[0]["snippet"].lower()
+
+def test_bm25_acronym_keyword_matching(db_session, test_notebook):
+    """Test BM25 keyword matching for exact acronyms like PPO."""
+    doc2_text = """# Reinforcement Learning
 Proximal Policy Optimization (PPO) is an on-policy policy gradient method for reinforcement learning.
 PPO seeks to improve training stability by preventing updates from shifting policy weights too far from previous iterations.
 """
-        src2 = IngestionPipeline.process_pasted_text(
-            notebook_id=nb.id,
-            title="RL_Survey",
-            content=doc2_text,
-            db=db
-        )
+    IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="RL_Survey",
+        content=doc2_text,
+        db=db_session
+    )
 
-        print("[OK] Test sources ingested successfully.")
+    query = "What does PPO do in reinforcement learning?"
+    context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
 
-        # Test Query 1: Transformer query
-        query1 = "How does multi-head attention project queries and keys?"
-        context, citations = HybridRetriever.retrieve(query1, nb.id, db)
+    assert len(citations) > 0
+    assert any("RL_Survey" in c["source_title"] for c in citations)
 
-        print(f"[OK] Query 1 retrieved {len(citations)} citations:")
-        for c in citations:
-            print(f"    Citation [{c['index']}]: {c['source_title']} -> {c['snippet'][:60]}...")
+def test_inactive_source_scoping(db_session, test_notebook):
+    """Test that toggling a source to is_active=False completely excludes it from retrieval."""
+    doc_text = """# Secret Internal Specifications
+The confidential project codename is Operation SilverArrow.
+"""
+    src = IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="Confidential_Doc",
+        content=doc_text,
+        db=db_session
+    )
 
-        assert len(citations) > 0, "Should retrieve at least 1 citation"
-        assert "Attention_Paper" in citations[0]["source_title"], "Top citation must be Attention_Paper"
+    # First verify it is retrieved when active
+    _, citations_active = HybridRetriever.retrieve("What is the project codename?", test_notebook.id, db_session)
+    assert any("Confidential_Doc" in c["source_title"] for c in citations_active)
 
-        # Test Query 2: Exact acronym keyword search for PPO
-        query2 = "What does PPO do in reinforcement learning?"
-        context2, citations2 = HybridRetriever.retrieve(query2, nb.id, db)
+    # Now deactivate source
+    src.is_active = False
+    db_session.commit()
 
-        print(f"[OK] Query 2 (BM25 acronym) retrieved top citation: {citations2[0]['source_title']}")
-        assert "RL_Survey" in citations2[0]["source_title"], "Top citation must be RL_Survey"
+    _, citations_inactive = HybridRetriever.retrieve("What is the project codename?", test_notebook.id, db_session)
+    for c in citations_inactive:
+        assert "Confidential_Doc" not in c["source_title"], "Inactive source must NOT appear in retrieval!"
 
-        # Test Scoping: Toggle doc1 inactive
-        src1.is_active = False
-        db.commit()
+def test_empty_notebook_retrieval(db_session):
+    """Test retrieval on a notebook with zero sources returns empty results without crashing."""
+    empty_nb = Notebook(title="Empty Notebook")
+    db_session.add(empty_nb)
+    db_session.commit()
+    db_session.refresh(empty_nb)
 
-        context3, citations3 = HybridRetriever.retrieve(query1, nb.id, db)
-        print(f"[OK] After toggling Attention inactive, retrieved {len(citations3)} citations.")
-        for c in citations3:
-            assert "Attention_Paper" not in c["source_title"], "Inactive source must NOT appear in context!"
-
-        print("\nAll Hybrid RAG Retrieval tests passed with 100% precision!")
-
-    finally:
-        db.close()
-
-if __name__ == "__main__":
-    run_test()
+    context, citations = HybridRetriever.retrieve("Any query here", empty_nb.id, db_session)
+    assert context == ""
+    assert citations == []
