@@ -52,6 +52,15 @@ class ChromaVectorStore:
         except Exception:
             pass
 
+    def delete_notebook_chunks(self, notebook_id: str) -> None:
+        """
+        Deletes all chunks belonging to a deleted notebook.
+        """
+        try:
+            self.collection.delete(where={"notebook_id": notebook_id})
+        except Exception:
+            pass
+
     def query(
         self,
         query_embedding: List[float],
