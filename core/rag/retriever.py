@@ -56,17 +56,34 @@ class HybridRetriever:
             chunk_dicts.append(data)
             chunk_id_map[chunk.id] = data
 
-        # 2. Dense Semantic Retrieval
-        query_embedding = np.array(embedding_provider.embed_text(query), dtype=np.float32)
-        chunk_embeddings = np.array(
-            embedding_provider.embed_batch([c["content"] for c in chunk_dicts]),
-            dtype=np.float32
-        )
+        # 2. Dense Semantic Retrieval via ChromaDB
+        query_vec = embedding_provider.embed_text(query)
+        active_source_ids = list({c["source_id"] for c in chunk_dicts})
 
-        # Dot product of normalized vectors = Cosine Similarity
-        dense_scores = np.dot(chunk_embeddings, query_embedding)
-        dense_ranked_indices = np.argsort(dense_scores)[::-1]
-        dense_ranked_ids = [chunk_dicts[idx]["id"] for idx in dense_ranked_indices]
+        dense_ranked_ids: List[str] = []
+        try:
+            from core.rag.chroma_store import chroma_store
+            chroma_results = chroma_store.query(
+                query_embedding=query_vec,
+                notebook_id=notebook_id,
+                active_source_ids=active_source_ids,
+                top_k=min(50, len(chunk_dicts))
+            )
+            if chroma_results:
+                dense_ranked_ids = [res["id"] for res in chroma_results if res["id"] in chunk_id_map]
+        except Exception:
+            dense_ranked_ids = []
+
+        # Fallback to direct cosine scoring if Chroma collection is empty or unindexed
+        if not dense_ranked_ids:
+            query_embedding = np.array(query_vec, dtype=np.float32)
+            chunk_embeddings = np.array(
+                embedding_provider.embed_batch([c["content"] for c in chunk_dicts]),
+                dtype=np.float32
+            )
+            dense_scores = np.dot(chunk_embeddings, query_embedding)
+            dense_ranked_indices = np.argsort(dense_scores)[::-1]
+            dense_ranked_ids = [chunk_dicts[idx]["id"] for idx in dense_ranked_indices]
 
         # 3. Sparse BM25 Keyword Retrieval
         bm25_ranked = BM25Retriever.rank(query, chunk_dicts, top_k=len(chunk_dicts))
