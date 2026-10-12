@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, RotateCw, Sparkles, Volume2 } from 'lucide-react';
+import { Play, Pause, RotateCcw, RotateCw, Sparkles, Volume2, Loader2 } from 'lucide-react';
 
 interface AudioPlayerProps {
   audioUrl?: string;
@@ -16,17 +16,19 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [currentTime, setCurrentTime] = useState(42); // Seeded default for preview
-  const [duration, setDuration] = useState(180); // 3:00 default
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(180); // Default placeholder duration
   const [activeSpeaker, setActiveSpeaker] = useState<'Alex' | 'Morgan'>('Alex');
   const [isScrubbing, setIsScrubbing] = useState(false);
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const stepRef = useRef<number>(0);
 
   // Format MM:SS with tabular mono
   const formatTime = (secs: number) => {
+    if (isNaN(secs) || secs < 0) secs = 0;
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
@@ -40,6 +42,52 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return Math.max(0.18, Math.min(1.0, (base + noise) * 0.8));
     })
   ).current;
+
+  // Real Audio Hookups
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleLoadedMetadata = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      if (!isScrubbing) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+    };
+  }, [isScrubbing, audioUrl]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   // Waveform drawing
   const drawWaveform = useCallback(() => {
@@ -56,7 +104,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     const gap = 3;
     const totalGap = (totalBars - 1) * gap;
     const barWidth = Math.max(2, (width - totalGap) / totalBars);
-    const progress = duration > 0 ? currentTime / duration : 0;
+    const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
 
     for (let i = 0; i < totalBars; i++) {
       const barProg = i / totalBars;
@@ -84,27 +132,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   }, [barHeights, currentTime, duration, isPlaying]);
 
-  // Animation Loop for live playback
+  // Waveform Animation Loop
   useEffect(() => {
     if (!isPlaying) {
       drawWaveform();
       return;
     }
 
-    const interval = setInterval(() => {
-      setCurrentTime(prev => {
-        if (prev >= duration) {
-          setIsPlaying(false);
-          return 0;
-        }
-        return prev + 0.25 * playbackSpeed;
-      });
-    }, 250);
-
     const loop = () => {
       stepRef.current += 1;
       if (stepRef.current % 160 === 0) {
-        setActiveSpeaker(prev => prev === 'Alex' ? 'Morgan' : 'Alex');
+        setActiveSpeaker(prev => (prev === 'Alex' ? 'Morgan' : 'Alex'));
       }
       drawWaveform();
       animFrameRef.current = requestAnimationFrame(loop);
@@ -113,10 +151,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     animFrameRef.current = requestAnimationFrame(loop);
 
     return () => {
-      clearInterval(interval);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [isPlaying, playbackSpeed, duration, drawWaveform]);
+  }, [isPlaying, drawWaveform]);
+
+  // Play / Pause Toggle
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (audioUrl && audio) {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        audio.play().catch(e => console.warn("Audio playback error:", e));
+      }
+    } else {
+      // In simulated preview mode
+      setIsPlaying(!isPlaying);
+    }
+  };
 
   // Handle Scrubbing on Canvas
   const handleSeek = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -125,7 +177,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     const rect = canvas.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const pct = Math.max(0, Math.min(1, clickX / rect.width));
-    setCurrentTime(pct * duration);
+    const target = pct * duration;
+    setCurrentTime(target);
+    if (audioRef.current && audioUrl) {
+      audioRef.current.currentTime = target;
+    }
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -147,6 +203,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   };
 
+  const handleSkip = (seconds: number) => {
+    const target = Math.max(0, Math.min(duration, currentTime + seconds));
+    setCurrentTime(target);
+    if (audioRef.current && audioUrl) {
+      audioRef.current.currentTime = target;
+    }
+  };
+
   return (
     <div style={{
       backgroundColor: 'var(--bg-2)',
@@ -157,6 +221,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       boxShadow: 'var(--shadow-raised)',
       position: 'relative'
     }}>
+      {/* Hidden real HTML5 audio element */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+        />
+      )}
+
       {/* Eyebrow & Live Speaker Monogram */}
       <div style={{
         display: 'flex',
@@ -173,20 +246,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             textTransform: 'uppercase'
           }}
         >
-          DEEP DIVE CONVERSATION
+          {audioUrl ? "DEEP DIVE CONVERSATION" : "AUDIO OVERVIEW (PODCAST)"}
         </div>
 
         {/* Host Avatars */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div
-            title="Host Alex"
+            title="Host Alex (Analyst)"
             style={{
               width: '22px',
               height: '22px',
               borderRadius: '50%',
-              backgroundColor: activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--bg-1)',
-              color: activeSpeaker === 'Alex' ? '#ffffff' : 'var(--text-3)',
-              border: `1px solid ${activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--line)'}`,
+              backgroundColor: isPlaying && activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--bg-1)',
+              color: isPlaying && activeSpeaker === 'Alex' ? '#ffffff' : 'var(--text-3)',
+              border: `1px solid ${isPlaying && activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--line)'}`,
               fontSize: '10px',
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
@@ -199,14 +272,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             A
           </div>
           <div
-            title="Host Morgan"
+            title="Host Morgan (Curious Co-host)"
             style={{
               width: '22px',
               height: '22px',
               borderRadius: '50%',
-              backgroundColor: activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--bg-1)',
-              color: activeSpeaker === 'Morgan' ? '#ffffff' : 'var(--text-3)',
-              border: `1px solid ${activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--line)'}`,
+              backgroundColor: isPlaying && activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--bg-1)',
+              color: isPlaying && activeSpeaker === 'Morgan' ? '#ffffff' : 'var(--text-3)',
+              border: `1px solid ${isPlaying && activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--line)'}`,
               fontSize: '10px',
               fontFamily: 'var(--font-mono)',
               fontWeight: 600,
@@ -218,17 +291,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           >
             M
           </div>
-          <span
-            className="mono"
-            style={{
-              fontSize: '11px',
-              color: isPlaying ? 'var(--signal)' : 'var(--text-3)',
-              marginLeft: '4px',
-              fontWeight: 500
-            }}
-          >
-            {activeSpeaker}
-          </span>
         </div>
       </div>
 
@@ -236,63 +298,99 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <h3
         className="serif"
         style={{
-          fontSize: '20px',
+          fontSize: '18px',
           fontWeight: 400,
           color: 'var(--text-1)',
-          lineHeight: 1.25,
-          marginBottom: '16px'
+          marginBottom: '12px',
+          lineHeight: 1.2
         }}
       >
         {title}
       </h3>
 
-      {/* The Waveform IS the Scrubber (Interactive canvas) */}
-      <div style={{
-        position: 'relative',
-        width: '100%',
-        margin: '12px 0 8px',
-        cursor: 'ew-resize'
-      }}>
+      {/* Generate Audio CTA if not yet generated */}
+      {!audioUrl && onGenerate && (
+        <div style={{ marginBottom: '14px' }}>
+          <button
+            onClick={onGenerate}
+            disabled={isGenerating}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              backgroundColor: 'var(--accent)',
+              color: 'var(--accent-text)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '13px',
+              fontFamily: 'var(--font-ui)',
+              fontWeight: 600,
+              cursor: isGenerating ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'opacity var(--duration-fast) var(--ease-out)'
+            }}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 size={16} className="spin-animate" />
+                <span>Synthesizing Two-Host Podcast Dialogue...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} />
+                <span>Generate Deep Dive Audio Overview</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Waveform Scrubber Surface */}
+      <div style={{ position: 'relative', height: '48px', marginBottom: '8px' }}>
         <canvas
           ref={canvasRef}
-          width={340}
-          height={46}
+          width={320}
+          height={48}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           style={{
-            display: 'block',
             width: '100%',
-            height: '46px',
-            touchAction: 'none'
+            height: '100%',
+            cursor: 'ew-resize',
+            display: 'block'
           }}
+          title="Click or drag waveform to scrub"
         />
       </div>
 
-      {/* Time Readout: Mono Tabular-Nums */}
+      {/* Time Display */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'space-between',
-        fontSize: '11px',
-        fontFamily: 'var(--font-mono)',
-        color: 'var(--text-3)',
-        marginBottom: '16px'
+        alignItems: 'center',
+        marginBottom: '14px'
       }}>
-        <span style={{ color: 'var(--text-2)' }}>{formatTime(currentTime)}</span>
-        <span>{formatTime(duration)}</span>
+        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-2)' }}>
+          {formatTime(currentTime)}
+        </span>
+        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+          {formatTime(duration)}
+        </span>
       </div>
 
-      {/* Main Controls Row */}
+      {/* Primary Transport Controls */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        {/* Playback & Skip Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* Playback Skip Buttons + Signal Play Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
-            onClick={() => setCurrentTime(Math.max(0, currentTime - 10))}
+            onClick={() => handleSkip(-10)}
             style={{
               color: 'var(--text-2)',
               padding: '6px',
@@ -300,7 +398,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color var(--duration-fast) var(--ease-out)'
+              transition: 'color var(--duration-fast) var(--ease-out)',
+              cursor: 'pointer'
             }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
@@ -309,9 +408,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             <RotateCcw size={16} />
           </button>
 
-          {/* 48px Signal Play Button */}
+          {/* 46px Signal Play Button */}
           <button
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={togglePlay}
+            disabled={isGenerating}
             aria-label={isPlaying ? "Pause conversation" : "Play conversation"}
             style={{
               width: '46px',
@@ -324,16 +424,20 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               justifyContent: 'center',
               boxShadow: '0 4px 12px rgba(255, 90, 54, 0.35)',
               transition: 'transform var(--duration-fast) var(--ease-out)',
-              cursor: 'pointer'
+              cursor: isGenerating ? 'not-allowed' : 'pointer'
             }}
             onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.96)')}
             onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            {isPlaying ? <Pause size={20} fill="#ffffff" /> : <Play size={20} fill="#ffffff" style={{ marginLeft: '2px' }} />}
+            {isPlaying ? (
+              <Pause size={20} fill="#ffffff" />
+            ) : (
+              <Play size={20} fill="#ffffff" style={{ marginLeft: '2px' }} />
+            )}
           </button>
 
           <button
-            onClick={() => setCurrentTime(Math.min(duration, currentTime + 10))}
+            onClick={() => handleSkip(10)}
             style={{
               color: 'var(--text-2)',
               padding: '6px',
@@ -341,7 +445,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color var(--duration-fast) var(--ease-out)'
+              transition: 'color var(--duration-fast) var(--ease-out)',
+              cursor: 'pointer'
             }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
@@ -360,7 +465,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           borderRadius: 'var(--radius-sm)',
           border: '1px solid var(--line)'
         }}>
-          {[0.8, 1.0, 1.2, 1.5].map((speed) => (
+          {[0.8, 1.0, 1.25, 1.5, 2.0].map((speed) => (
             <button
               key={speed}
               onClick={() => setPlaybackSpeed(speed)}
@@ -373,7 +478,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 color: playbackSpeed === speed ? 'var(--text-1)' : 'var(--text-3)',
                 border: playbackSpeed === speed ? '1px solid var(--line-strong)' : '1px solid transparent',
                 fontWeight: playbackSpeed === speed ? 600 : 400,
-                transition: 'all var(--duration-fast) var(--ease-out)'
+                transition: 'all var(--duration-fast) var(--ease-out)',
+                cursor: 'pointer'
               }}
             >
               {speed}x
