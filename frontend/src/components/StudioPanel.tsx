@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StudioArtifact, Note } from '../types';
 import { AudioPlayer } from './AudioPlayer';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { 
   Plus, 
   Trash2, 
@@ -8,7 +9,10 @@ import {
   ArrowUpRight, 
   Check, 
   X,
-  FileText
+  FileText,
+  Copy,
+  Download,
+  Bookmark
 } from 'lucide-react';
 
 interface StudioPanelProps {
@@ -18,6 +22,8 @@ interface StudioPanelProps {
   onSaveNote: (title: string, content: string) => void;
   onDeleteNote: (noteId: string) => void;
   onSynthesizeNotes: (noteIds: string[]) => void;
+  onGenerateAudio?: () => void;
+  isGeneratingAudio?: boolean;
 }
 
 // Custom editorial vector icons for the 4 generators
@@ -61,8 +67,11 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
   onGenerateArtifact,
   onSaveNote,
   onDeleteNote,
-  onSynthesizeNotes
+  onSynthesizeNotes,
+  onGenerateAudio,
+  isGeneratingAudio
 }) => {
+  const latestAudio = artifacts.find(a => a.artifact_type === 'audio_overview');
   const [activeTab, setActiveTab] = useState<'studio' | 'notes'>('studio');
   const [noteTitle, setNoteTitle] = useState('Research Notes');
   const [noteContent, setNoteContent] = useState('');
@@ -70,6 +79,8 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
   const [activeArtifact, setActiveArtifact] = useState<StudioArtifact | null>(null);
   const [generatingType, setGeneratingType] = useState<string | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [copiedArtifact, setCopiedArtifact] = useState(false);
+  const [savedArtifactAsNote, setSavedArtifactAsNote] = useState(false);
 
   const generatorTiles = [
     {
@@ -216,7 +227,12 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
         {activeTab === 'studio' ? (
           <div>
             {/* Podcast Audio Overview Card - Raised Surface */}
-            <AudioPlayer />
+            <AudioPlayer
+              audioUrl={latestAudio?.media_url}
+              title={latestAudio?.title || "Deep Dive Conversation"}
+              isGenerating={isGeneratingAudio}
+              onGenerate={onGenerateAudio}
+            />
 
             {/* Studio Generators Section */}
             <div
@@ -670,7 +686,8 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
               borderBottom: '1px solid var(--line)',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-2)'
             }}>
               <div>
                 <span
@@ -678,9 +695,12 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
                   style={{
                     fontSize: '10px',
                     letterSpacing: '0.12em',
-                    color: 'var(--text-3)',
+                    color: 'var(--accent)',
+                    backgroundColor: 'rgba(214, 255, 63, 0.1)',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-sm)',
                     textTransform: 'uppercase',
-                    display: 'block',
+                    display: 'inline-block',
                     marginBottom: '4px'
                   }}
                 >
@@ -698,23 +718,108 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
                 </h3>
               </div>
 
-              <button 
-                onClick={() => setActiveArtifact(null)} 
-                aria-label="Close manuscript modal"
-                style={{
-                  color: 'var(--text-3)',
-                  padding: '6px',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Save to Note Button */}
+                <button
+                  onClick={() => {
+                    onSaveNote(activeArtifact.title, activeArtifact.content_markdown || '');
+                    setSavedArtifactAsNote(true);
+                    setTimeout(() => setSavedArtifactAsNote(false), 2000);
+                  }}
+                  className="mono"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: savedArtifactAsNote ? 'var(--accent)' : 'var(--text-2)',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                  title="Save artifact into your notes"
+                >
+                  {savedArtifactAsNote ? <Check size={12} /> : <Bookmark size={12} />}
+                  <span>{savedArtifactAsNote ? 'Saved' : 'Save to Notes'}</span>
+                </button>
+
+                {/* Copy Markdown Button */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeArtifact.content_markdown || '');
+                    setCopiedArtifact(true);
+                    setTimeout(() => setCopiedArtifact(false), 2000);
+                  }}
+                  className="mono"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: copiedArtifact ? 'var(--accent)' : 'var(--text-2)',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                  title="Copy markdown text"
+                >
+                  {copiedArtifact ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copiedArtifact ? 'Copied' : 'Copy'}</span>
+                </button>
+
+                {/* Download Markdown file */}
+                <button
+                  onClick={() => {
+                    const blob = new Blob([activeArtifact.content_markdown || ''], { type: 'text/markdown' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${activeArtifact.title.replace(/[\s/\\:]+/g, '_')}.md`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="mono"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-2)',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                  title="Download as .md file"
+                >
+                  <Download size={12} />
+                  <span>Download</span>
+                </button>
+
+                {/* Close Button */}
+                <button 
+                  onClick={() => setActiveArtifact(null)} 
+                  aria-label="Close manuscript modal"
+                  style={{
+                    color: 'var(--text-3)',
+                    padding: '6px',
+                    borderRadius: 'var(--radius-sm)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-3)')}
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div style={{
@@ -723,16 +828,10 @@ export const StudioPanel: React.FC<StudioPanelProps> = ({
               flex: 1,
               fontSize: '14px',
               lineHeight: 1.7,
-              color: 'var(--text-2)',
-              fontFamily: 'var(--font-ui)'
+              color: 'var(--text-1)',
+              backgroundColor: 'var(--bg-1)'
             }}>
-              <pre style={{
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'inherit',
-                margin: 0
-              }}>
-                {activeArtifact.content_markdown || activeArtifact.content_json}
-              </pre>
+              <MarkdownRenderer content={activeArtifact.content_markdown || activeArtifact.content_json || ''} />
             </div>
           </div>
         </div>
