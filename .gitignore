@@ -47,6 +47,9 @@ storage/vector_store/*
 *.sqlite-journal
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
+storage/*.db*
 
 # IDE & OS
 .vscode/
