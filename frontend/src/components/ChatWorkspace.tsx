@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Message, Source, CitationItem } from '../types';
 import { CitationPill } from './CitationPill';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { ArrowUp, Copy, Bookmark, Check, AlertCircle } from 'lucide-react';
 
 interface ChatWorkspaceProps {
@@ -368,7 +369,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                       color: 'var(--text-1)',
                       fontFamily: 'var(--font-ui)'
                     }}>
-                      {renderMessageContent(msg.content, msg.citations)}
+                      <MarkdownRenderer content={msg.content} citations={msg.citations} />
                     </div>
 
                     {/* Action Bar */}
