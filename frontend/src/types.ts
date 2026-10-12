@@ -54,3 +54,15 @@ export interface StudioArtifact {
   media_url?: string;
   created_at: string;
 }
+
+export interface ChunkItem {
+  id: string;
+  source_id: string;
+  notebook_id: string;
+  page_number: number;
+  section_title?: string;
+  content: string;
+  char_start: number;
+  char_end: number;
+  sha256?: string;
+}
