@@ -1,24 +1,12 @@
-import tempfile
-from pathlib import Path
-from core.database import init_db, SessionLocal
+import pytest
 from core.models import Notebook, Source, Chunk
 from core.ingest.pipeline import IngestionPipeline
+from core.ingest.chunker import SemanticChunker
+from core.ingest.pdf_parser import PDFParser
 
-def run_test():
-    init_db()
-    db = SessionLocal()
-
-    try:
-        # Create a test notebook
-        nb = Notebook(title="Ingestion Test Notebook")
-        db.add(nb)
-        db.commit()
-        db.refresh(nb)
-
-        print(f"[OK] Created notebook: {nb.id}")
-
-        # Test pasted text ingestion
-        test_markdown = """# Machine Learning Overview
+def test_pasted_text_ingestion(db_session, test_notebook):
+    """Test ingestion of markdown pasted text into sources and chunks."""
+    test_markdown = """# Machine Learning Overview
 Machine learning is a subset of artificial intelligence focused on building applications that learn from data.
 
 ## Supervised Learning
@@ -29,41 +17,62 @@ Common algorithms include linear regression, logistic regression, support vector
 Unsupervised learning models identify latent patterns, clusters, and representations from unlabeled datasets.
 Examples include K-means clustering, hierarchical clustering, and principal component analysis.
 """
-        source = IngestionPipeline.process_pasted_text(
-            notebook_id=nb.id,
-            title="ML Overview",
-            content=test_markdown,
-            db=db
-        )
+    source = IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="ML Overview",
+        content=test_markdown,
+        db=db_session
+    )
 
-        print(f"[OK] Ingested source: {source.filename} (tokens: {source.token_count})")
-        assert source.token_count > 0, "Token count should be greater than 0"
+    assert source.id is not None
+    assert source.token_count > 0
+    assert source.is_active is True
 
-        # Check chunks
-        chunks = db.query(Chunk).filter(Chunk.source_id == source.id).all()
-        print(f"[OK] Generated {len(chunks)} chunks:")
-        for i, chk in enumerate(chunks, 1):
-            print(f"    Chunk {i}: Section='{chk.section_title}', Chars={chk.char_end - chk.char_start}, SHA={chk.sha256}")
-            assert chk.sha256 is not None, "SHA256 must be present"
-            assert len(chk.content) > 0, "Content must not be empty"
+    # Verify generated chunks
+    chunks = db_session.query(Chunk).filter(Chunk.source_id == source.id).all()
+    assert len(chunks) >= 1
+    for chk in chunks:
+        assert chk.sha256 is not None
+        assert len(chk.sha256) >= 16
+        assert len(chk.content) > 0
+        assert chk.notebook_id == test_notebook.id
 
-        # Test multi-chunk large document
-        large_content = "\n\n".join([f"Paragraph {i}: This is comprehensive research text discussing neural architectures, multi-head self-attention mechanisms, cross-attention projection layers, and empirical benchmark evaluations on extensive corpora." * 5 for i in range(1, 20)])
-        
-        large_source = IngestionPipeline.process_pasted_text(
-            notebook_id=nb.id,
-            title="Deep Neural Networks Extended",
-            content=large_content,
-            db=db
-        )
-        large_chunks = db.query(Chunk).filter(Chunk.source_id == large_source.id).all()
-        print(f"[OK] Large source chunked into {len(large_chunks)} sliding-window chunks.")
-        assert len(large_chunks) > 1, "Large text should produce multiple chunks"
+def test_sliding_window_large_document(db_session, test_notebook):
+    """Test chunking of long documents across sliding window boundaries."""
+    large_content = "\n\n".join([
+        f"Paragraph {i}: This is comprehensive research text discussing neural architectures, multi-head self-attention mechanisms, cross-attention projection layers, and empirical benchmark evaluations on extensive corpora." * 5
+        for i in range(1, 20)
+    ])
 
-        print("\nAll Ingestion Pipeline tests passed successfully!")
+    source = IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="Deep Neural Networks Extended",
+        content=large_content,
+        db=db_session
+    )
 
-    finally:
-        db.close()
+    chunks = db_session.query(Chunk).filter(Chunk.source_id == source.id).all()
+    assert len(chunks) > 1, "Large text should produce multiple sliding window chunks"
 
-if __name__ == "__main__":
-    run_test()
+    # Verify chunk sequence offsets
+    for i in range(len(chunks) - 1):
+        assert chunks[i].char_start < chunks[i+1].char_start
+
+def test_null_byte_stripping_and_sanitization():
+    """Verify that null bytes are stripped and clean text is produced."""
+    corrupted_text = "Machine Learning\x00 with null\x00 bytes inside\x00 text."
+    cleaned = PDFParser.sanitize_text(corrupted_text)
+    assert "\x00" not in cleaned
+    assert "Machine Learning with null bytes inside text." == cleaned
+
+def test_empty_content_handling(db_session, test_notebook):
+    """Verify that empty pasted text handles gracefully."""
+    source = IngestionPipeline.process_pasted_text(
+        notebook_id=test_notebook.id,
+        title="Empty Doc",
+        content="   ",
+        db=db_session
+    )
+    assert source.token_count == 0
+    chunks = db_session.query(Chunk).filter(Chunk.source_id == source.id).all()
+    assert len(chunks) == 0
