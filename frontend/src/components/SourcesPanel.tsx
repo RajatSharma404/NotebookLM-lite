@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Source } from '../types';
-import { ArrowUpRight, FileEdit, Trash2, FileText, FileCode } from 'lucide-react';
+import { Source, ChunkItem } from '../types';
+import { ArrowUpRight, FileEdit, Trash2, FileText, FileCode, Search, Copy, Check, X, Layers } from 'lucide-react';
 
 interface SourcesPanelProps {
   sources: Source[];
+  activeNotebookId?: string;
   onToggleSource: (sourceId: string, currentActive: boolean) => void;
   onDeleteSource: (sourceId: string) => void;
   onAddSource: (file: File) => void;
@@ -13,6 +14,7 @@ interface SourcesPanelProps {
 
 export const SourcesPanel: React.FC<SourcesPanelProps> = ({
   sources,
+  activeNotebookId,
   onToggleSource,
   onDeleteSource,
   onAddSource,
@@ -24,6 +26,42 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
   const [pasteContent, setPasteContent] = useState('');
   const [isDragOver, setIsDragOver] = useState(false);
   const [hoveredSourceId, setHoveredSourceId] = useState<string | null>(null);
+
+  // Source Inspector State
+  const [inspectingSource, setInspectingSource] = useState<Source | null>(null);
+  const [inspectChunks, setInspectChunks] = useState<ChunkItem[]>([]);
+  const [loadingChunks, setLoadingChunks] = useState(false);
+  const [chunkFilter, setChunkFilter] = useState('');
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [copiedChunkId, setCopiedChunkId] = useState<string | null>(null);
+
+  const handleInspectSource = async (src: Source) => {
+    setInspectingSource(src);
+    setLoadingChunks(true);
+    setChunkFilter('');
+    try {
+      const nbId = activeNotebookId || src.notebook_id;
+      const res = await fetch(`/api/notebooks/${nbId}/sources/${src.id}/chunks`);
+      if (res.ok) {
+        const data = await res.json();
+        setInspectChunks(data);
+      } else {
+        setInspectChunks([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch chunks:", err);
+      setInspectChunks([]);
+    } finally {
+      setLoadingChunks(false);
+    }
+  };
+
+  const handleCopyAllText = () => {
+    const fullText = inspectChunks.map(c => `[Page ${c.page_number} | ${c.section_title || 'General'}]\n${c.content}`).join("\n\n---\n\n");
+    navigator.clipboard.writeText(fullText);
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
 
   const activeCount = sources.filter(s => s.is_active).length;
 
@@ -255,26 +293,49 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Delete Button (hover/focus only, signal color on hover) */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteSource(source.id);
-                  }}
-                  style={{
-                    opacity: isHovered ? 1 : 0,
-                    transition: 'opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
-                    color: 'var(--text-3)',
-                    padding: '2px 4px',
-                    marginLeft: '8px'
-                  }}
-                  title="Remove source"
-                  aria-label={`Remove source ${source.filename}`}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--signal)'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-3)'}
-                >
-                  <Trash2 size={13} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
+                  {/* Inspect Chunks Button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleInspectSource(source);
+                    }}
+                    style={{
+                      opacity: isHovered ? 1 : 0,
+                      transition: 'opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
+                      color: 'var(--text-3)',
+                      padding: '4px',
+                      borderRadius: 'var(--radius-sm)'
+                    }}
+                    title="Inspect chunks and text"
+                    aria-label={`Inspect ${source.filename}`}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-1)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-3)'}
+                  >
+                    <FileText size={13} />
+                  </button>
+
+                  {/* Delete Button (hover/focus only, signal color on hover) */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSource(source.id);
+                    }}
+                    style={{
+                      opacity: isHovered ? 1 : 0,
+                      transition: 'opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out)',
+                      color: 'var(--text-3)',
+                      padding: '4px',
+                      borderRadius: 'var(--radius-sm)'
+                    }}
+                    title="Remove source"
+                    aria-label={`Remove source ${source.filename}`}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--signal)'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-3)'}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             );
           })
@@ -380,6 +441,212 @@ export const SourcesPanel: React.FC<SourcesPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Source Inspector Modal */}
+      {inspectingSource && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(12, 12, 11, 0.78)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-1)',
+            border: '1px solid var(--line-strong)',
+            borderRadius: 'var(--radius-lg)',
+            width: '680px',
+            maxWidth: '92vw',
+            maxHeight: '85vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: 'var(--shadow-raised)',
+            overflow: 'hidden'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-2)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: 'rgba(214, 255, 63, 0.12)',
+                    color: 'var(--accent)',
+                    border: '1px solid var(--line)',
+                    textTransform: 'uppercase',
+                    fontWeight: 600
+                  }}
+                >
+                  {inspectingSource.file_type || 'SOURCE'}
+                </span>
+                <h3
+                  className="serif"
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 400,
+                    color: 'var(--text-1)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title={inspectingSource.filename}
+                >
+                  {inspectingSource.filename}
+                </h3>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button
+                  onClick={handleCopyAllText}
+                  disabled={loadingChunks || inspectChunks.length === 0}
+                  className="mono"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: copiedAll ? 'var(--accent)' : 'var(--text-2)',
+                    backgroundColor: 'transparent'
+                  }}
+                  title="Copy complete extracted text"
+                >
+                  {copiedAll ? <Check size={12} /> : <Copy size={12} />}
+                  <span>{copiedAll ? 'Copied' : 'Copy All'}</span>
+                </button>
+                <button
+                  onClick={() => setInspectingSource(null)}
+                  style={{ color: 'var(--text-3)', padding: '4px' }}
+                  aria-label="Close Inspector"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-bar: stats and search */}
+            <div style={{
+              padding: '12px 20px',
+              borderBottom: '1px solid var(--line)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              backgroundColor: 'var(--bg-1)'
+            }}>
+              <div className="mono" style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+                {loadingChunks ? 'Loading chunks...' : `${inspectChunks.length} chunks • ${inspectingSource.token_count.toLocaleString()} tokens`}
+              </div>
+
+              <div style={{ position: 'relative', width: '220px' }}>
+                <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-3)' }} />
+                <input
+                  type="text"
+                  placeholder="Filter chunks..."
+                  value={chunkFilter}
+                  onChange={e => setChunkFilter(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '4px 8px 4px 28px',
+                    fontSize: '12px',
+                    backgroundColor: 'var(--bg-2)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-sm)',
+                    color: 'var(--text-1)'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Chunks List */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              {loadingChunks ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-3)' }} className="mono">
+                  Extracting indexed chunks from vector store...
+                </div>
+              ) : inspectChunks.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-3)' }} className="mono">
+                  No chunks indexed for this source.
+                </div>
+              ) : (
+                inspectChunks
+                  .filter(c => !chunkFilter || c.content.toLowerCase().includes(chunkFilter.toLowerCase()) || (c.section_title && c.section_title.toLowerCase().includes(chunkFilter.toLowerCase())))
+                  .map((chunk, idx) => (
+                    <div
+                      key={chunk.id || idx}
+                      style={{
+                        backgroundColor: 'var(--bg-2)',
+                        border: '1px solid var(--line)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '12px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="mono" style={{ fontSize: '10px', color: 'var(--accent)', backgroundColor: 'rgba(214, 255, 63, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
+                            p. {chunk.page_number}
+                          </span>
+                          <span className="mono" style={{ fontSize: '11px', color: 'var(--text-2)' }}>
+                            {chunk.section_title || `Chunk ${idx + 1}`}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+                            [{chunk.char_start}..{chunk.char_end}]
+                          </span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(chunk.content);
+                              setCopiedChunkId(chunk.id || String(idx));
+                              setTimeout(() => setCopiedChunkId(null), 1500);
+                            }}
+                            style={{ color: copiedChunkId === (chunk.id || String(idx)) ? 'var(--accent)' : 'var(--text-3)', padding: '2px' }}
+                            title="Copy chunk"
+                          >
+                            {copiedChunkId === (chunk.id || String(idx)) ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                      </div>
+                      <p style={{
+                        fontSize: '13px',
+                        lineHeight: 1.55,
+                        color: 'var(--text-1)',
+                        whiteSpace: 'pre-wrap',
+                        fontFamily: 'var(--font-ui)'
+                      }}>
+                        {chunk.content}
+                      </p>
+                    </div>
+                  ))
+              )}
+            </div>
           </div>
         </div>
       )}
