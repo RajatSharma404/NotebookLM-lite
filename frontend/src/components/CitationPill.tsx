@@ -1,109 +1,180 @@
-import React, { useState } from 'react';
-import { CitationItem } from '../types';
+// ============================================================================
+// CitationPill Component
+// Follows: notebooklm-design-system, fixing-accessibility, emil-design-eng
+// ============================================================================
 
-interface CitationPillProps {
-  index: number;
-  citation?: CitationItem;
+import React, { useState, useRef } from 'react';
+import { Citation } from '../types';
+import { FileText, ExternalLink } from 'lucide-react';
+
+export interface CitationPillProps {
+  citation: Citation;
+  onClick?: () => void;
 }
 
-export const CitationPill: React.FC<CitationPillProps> = ({ index, citation }) => {
-  const [showTooltip, setShowTooltip] = useState(false);
+export function CitationPill({ citation, onClick }: CitationPillProps) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const isResolved = citation.kind === 'chunk';
+  const markerNumber = isResolved ? citation.marker || 1 : citation.marker;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!citation) return;
-    // Attempt to locate source item in sidebar and highlight briefly
-    const sourceEl = document.querySelector(`[title="${citation.source_title}"]`);
-    if (sourceEl) {
-      sourceEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      sourceEl.classList.add('pulse-highlight');
-      setTimeout(() => sourceEl.classList.remove('pulse-highlight'), 600);
+    onClick?.();
+
+    // Pulse source row if in document
+    if (isResolved && citation.sourceId) {
+      const sourceRow = document.querySelector(`[data-source-id="${citation.sourceId}"]`);
+      if (sourceRow) {
+        sourceRow.classList.add('accent-pulse-highlight');
+        setTimeout(() => sourceRow.classList.remove('accent-pulse-highlight'), 600);
+      }
     }
   };
 
   return (
-    <span 
-      style={{ position: 'relative', display: 'inline-block', verticalAlign: 'baseline', margin: '0 2px' }}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-      onFocus={() => setShowTooltip(true)}
-      onBlur={() => setShowTooltip(false)}
+    <span
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        verticalAlign: 'super',
+        lineHeight: 0,
+        margin: '0 2px'
+      }}
+      onMouseEnter={() => setPopoverOpen(true)}
+      onMouseLeave={() => setPopoverOpen(false)}
     >
       <button
+        ref={triggerRef}
+        type="button"
+        role="button"
+        aria-label={`Citation [${markerNumber}]${isResolved ? ` from ${citation.sourceTitle || 'source'}` : ' (unresolved)'}`}
+        aria-haspopup="dialog"
+        aria-expanded={popoverOpen}
+        onFocus={() => setPopoverOpen(true)}
+        onBlur={() => setPopoverOpen(false)}
         onClick={handleClick}
-        className="mono"
+        className="font-mono ui-citation-pill"
         style={{
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: 'var(--citation-bg)',
-          color: 'var(--citation-text)',
-          border: '1px solid var(--citation-border)',
-          borderRadius: '3px',
-          padding: '0 4px',
+          padding: '1px 5px',
           fontSize: '11px',
           fontWeight: 600,
-          cursor: 'pointer',
-          lineHeight: '14px',
-          verticalAlign: 'super',
-          transition: 'border-color var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out)'
+          color: isResolved ? 'var(--text-1)' : 'var(--text-3)',
+          backgroundColor: isResolved ? 'var(--bg-1)' : 'transparent',
+          border: '1px solid var(--line-strong)',
+          borderBottom: isResolved ? '2px solid var(--accent)' : '1px solid var(--line)',
+          borderRadius: 'var(--radius-1)',
+          cursor: isResolved ? 'pointer' : 'default',
+          transition: 'border-color var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out)',
+          lineHeight: 1.2
         }}
-        aria-label={`Citation ${index}: ${citation?.source_title || 'Source'} (Page ${citation?.page_number || 1})`}
       >
-        {index}
+        <span>[{markerNumber}]</span>
       </button>
 
-      {showTooltip && citation && (
+      {/* Popover on Hover / Focus */}
+      {popoverOpen && (
         <div
+          role="dialog"
+          aria-label={`Citation details for marker ${markerNumber}`}
           style={{
             position: 'absolute',
-            bottom: 'calc(100% + 6px)',
+            bottom: 'calc(100% + 8px)',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '280px',
+            zIndex: 'var(--z-popover)',
+            width: '260px',
             backgroundColor: 'var(--bg-2)',
             border: '1px solid var(--line-strong)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '10px 12px',
-            boxShadow: 'var(--shadow-raised)',
-            zIndex: 1000,
-            color: 'var(--text-1)',
-            fontSize: '12px',
-            pointerEvents: 'none'
+            borderRadius: 'var(--radius-1)',
+            padding: 'var(--space-3)',
+            boxShadow: 'var(--shadow-popover)',
+            pointerEvents: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-2)',
+            lineHeight: 1.4
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '6px', marginBottom: '6px' }}>
-            <span
-              className="mono"
-              style={{
-                fontWeight: 600,
-                fontSize: '11px',
-                color: 'var(--accent)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {citation.source_title}
-            </span>
-            <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', flexShrink: 0 }}>
-              p. {citation.page_number}
-            </span>
-          </div>
-          <div style={{
-            fontSize: '11px',
-            color: 'var(--text-2)',
-            lineHeight: 1.5,
-            borderLeft: '2px solid var(--accent)',
-            paddingLeft: '8px',
-            fontStyle: 'italic',
-            maxHeight: '100px',
-            overflowY: 'hidden'
-          }}>
-            "{citation.snippet}"
-          </div>
+          {isResolved ? (
+            <>
+              {/* Header with Source & Page */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: '1px solid var(--line)',
+                  paddingBottom: '4px'
+                }}
+              >
+                <span
+                  className="font-mono"
+                  style={{
+                    fontSize: '11px',
+                    color: 'var(--accent-text)',
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '180px'
+                  }}
+                  title={citation.sourceTitle}
+                >
+                  {citation.sourceTitle || 'Source Document'}
+                </span>
+                {citation.page !== undefined && (
+                  <span className="font-mono" style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+                    p. {citation.page}
+                  </span>
+                )}
+              </div>
+
+              {/* Cited Quote Snippet */}
+              {citation.quote && (
+                <p
+                  style={{
+                    fontSize: '12px',
+                    color: 'var(--text-2)',
+                    fontStyle: 'italic',
+                    margin: 0,
+                    maxHeight: '80px',
+                    overflowY: 'hidden',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical'
+                  }}
+                >
+                  &ldquo;{citation.quote}&rdquo;
+                </p>
+              )}
+
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: '10px',
+                  color: 'var(--text-3)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <ExternalLink size={10} /> Click to highlight in sources
+              </span>
+            </>
+          ) : (
+            <div className="font-mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+              Unresolved citation marker [{markerNumber}] &bull; source index pending
+            </div>
+          )}
         </div>
       )}
     </span>
   );
-};
+}
+
+export default CitationPill;
