@@ -1,492 +1,431 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, RotateCw, Sparkles, Volume2, Loader2 } from 'lucide-react';
+// ============================================================================
+// AudioPlayer Component (Raised Surface 2 of 2)
+// Follows: notebooklm-design-system, fixing-motion-performance, emil-design-eng
+// ============================================================================
 
-interface AudioPlayerProps {
+import React, { useRef, useEffect, useState, useCallback, KeyboardEvent } from 'react';
+import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import {
+  seekFromPointer,
+  formatAudioTime,
+  generateDeterministicBars
+} from '../utils/audioMath';
+import { Play, Pause, RotateCcw, RotateCw } from 'lucide-react';
+
+export interface AudioPlayerProps {
   audioUrl?: string;
   title?: string;
-  isGenerating?: boolean;
-  onGenerate?: () => void;
+  subtitle?: string;
+  hostName?: string;
+  duration?: number;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({
+const SPEED_OPTIONS = [0.8, 1.0, 1.2, 1.5];
+
+export function AudioPlayer({
   audioUrl,
-  title = "Deep Dive Conversation",
-  isGenerating = false,
-  onGenerate
-}) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180); // Default placeholder duration
-  const [activeSpeaker, setActiveSpeaker] = useState<'Alex' | 'Morgan'>('Alex');
-  const [isScrubbing, setIsScrubbing] = useState(false);
+  title = 'Audio Overview: Deep Dive',
+  subtitle = 'Two-Host Grounded Discussion',
+  hostName = 'Alex & Morgan',
+  duration = 210
+}: AudioPlayerProps) {
+  const {
+    isPlaying,
+    currentTime,
+    duration: actualDuration,
+    playbackRate,
+    togglePlay,
+    seek,
+    jump,
+    setRate
+  } = useAudioPlayer({ audioUrl, defaultDuration: duration });
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const stepRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState<number | null>(null);
 
-  // Format MM:SS with tabular mono
-  const formatTime = (secs: number) => {
-    if (isNaN(secs) || secs < 0) secs = 0;
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
+  // 52 Normalized Waveform Bars (pure mathematical generation)
+  const bars = useRef(generateDeterministicBars(52, title)).current;
 
-  // Seeding static waveform bar profiles
-  const barHeights = useRef<number[]>(
-    Array.from({ length: 52 }, (_, i) => {
-      const base = Math.sin(i * 0.28) * 0.4 + 0.6;
-      const noise = Math.cos(i * 0.85) * 0.3;
-      return Math.max(0.18, Math.min(1.0, (base + noise) * 0.8));
-    })
-  ).current;
-
-  // Real Audio Hookups
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(audio.duration);
-      }
-    };
-
-    const handleTimeUpdate = () => {
-      if (!isScrubbing) {
-        setCurrentTime(audio.currentTime);
-      }
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-
-    return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-    };
-  }, [isScrubbing, audioUrl]);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed]);
-
-  // Waveform drawing
+  // Render Waveform Canvas with devicePixelRatio calibration
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+
+    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+    }
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
-    const totalBars = barHeights.length;
-    const gap = 3;
-    const totalGap = (totalBars - 1) * gap;
-    const barWidth = Math.max(2, (width - totalGap) / totalBars);
-    const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+    const barCount = bars.length;
+    const gap = 2;
+    const totalGap = (barCount - 1) * gap;
+    const barWidth = Math.max(2, (width - totalGap) / barCount);
+    const progressRatio = actualDuration > 0 ? currentTime / actualDuration : 0;
+    const playedBarIndex = Math.floor(progressRatio * barCount);
 
-    for (let i = 0; i < totalBars; i++) {
-      const barProg = i / totalBars;
-      let hMultiplier = barHeights[i];
+    // Read colors once outside loop
+    const style = getComputedStyle(canvas);
+    const accentColor = style.getPropertyValue('--accent').trim() || '#D6FF3F';
+    const unplayedColor = style.getPropertyValue('--line-strong').trim() || 'rgba(242, 238, 226, 0.22)';
 
-      if (isPlaying) {
-        const osc = Math.sin(stepRef.current * 0.12 + i * 0.4) * 0.25;
-        hMultiplier = Math.max(0.15, Math.min(1.0, hMultiplier + osc));
-      }
-
-      const barH = Math.max(4, hMultiplier * (height - 6));
+    for (let i = 0; i < barCount; i++) {
+      const barHeight = Math.max(4, bars[i] * (height - 8));
       const x = i * (barWidth + gap);
-      const y = (height - barH) / 2;
+      const y = (height - barHeight) / 2;
 
-      // Color: Signal for played bars, subtle line-strong/text-3 for unplayed
-      if (barProg <= progress) {
-        ctx.fillStyle = '#FF5A36'; // var(--signal)
-      } else {
-        ctx.fillStyle = 'rgba(140, 140, 140, 0.3)';
-      }
-
+      ctx.fillStyle = i <= playedBarIndex ? accentColor : unplayedColor;
+      // Rounded bar cap
       ctx.beginPath();
-      ctx.roundRect(x, y, barWidth, barH, 1.5);
+      ctx.roundRect ? ctx.roundRect(x, y, barWidth, barHeight, 1.5) : ctx.rect(x, y, barWidth, barHeight);
       ctx.fill();
     }
-  }, [barHeights, currentTime, duration, isPlaying]);
 
-  // Waveform Animation Loop
+    ctx.restore();
+  }, [bars, currentTime, actualDuration]);
+
+  // Redraw when time changes
   useEffect(() => {
-    if (!isPlaying) {
-      drawWaveform();
-      return;
-    }
+    drawWaveform();
+  }, [drawWaveform]);
 
-    const loop = () => {
-      stepRef.current += 1;
-      if (stepRef.current % 160 === 0) {
-        setActiveSpeaker(prev => (prev === 'Alex' ? 'Morgan' : 'Alex'));
-      }
-      drawWaveform();
-      animFrameRef.current = requestAnimationFrame(loop);
-    };
-
-    animFrameRef.current = requestAnimationFrame(loop);
-
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [isPlaying, drawWaveform]);
-
-  // Play / Pause Toggle
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (audioUrl && audio) {
-      if (isPlaying) {
-        audio.pause();
-      } else {
-        audio.play().catch(e => console.warn("Audio playback error:", e));
-      }
-    } else {
-      // In simulated preview mode
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  // Handle Scrubbing on Canvas
-  const handleSeek = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  // Pointer Scrubbing Handlers
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const pct = Math.max(0, Math.min(1, clickX / rect.width));
-    const target = pct * duration;
-    setCurrentTime(target);
-    if (audioRef.current && audioUrl) {
-      audioRef.current.currentTime = target;
-    }
-  };
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    setIsScrubbing(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-    handleSeek(e);
+    canvas.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+
+    const rect = canvas.getBoundingClientRect();
+    const newTime = seekFromPointer(e.clientX, rect.left, rect.width, actualDuration);
+    seek(newTime);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (isScrubbing) {
-      handleSeek(e);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const targetTime = seekFromPointer(e.clientX, rect.left, rect.width, actualDuration);
+
+    setHoverTime(targetTime);
+    setHoverX(e.clientX - rect.left);
+
+    if (isDragging) {
+      seek(targetTime);
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (isScrubbing) {
-      setIsScrubbing(false);
-      e.currentTarget.releasePointerCapture(e.pointerId);
+    if (canvasRef.current && canvasRef.current.hasPointerCapture(e.pointerId)) {
+      canvasRef.current.releasePointerCapture(e.pointerId);
+    }
+    setIsDragging(false);
+  };
+
+  const handlePointerLeave = () => {
+    if (!isDragging) {
+      setHoverTime(null);
+      setHoverX(null);
     }
   };
 
-  const handleSkip = (seconds: number) => {
-    const target = Math.max(0, Math.min(duration, currentTime + seconds));
-    setCurrentTime(target);
-    if (audioRef.current && audioUrl) {
-      audioRef.current.currentTime = target;
+  // Keyboard navigation on scrubber slider
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      togglePlay();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      jump(-5);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      jump(5);
     }
   };
 
   return (
-    <div style={{
-      backgroundColor: 'var(--bg-2)',
-      border: '1px solid var(--line-strong)',
-      borderRadius: 'var(--radius-lg)',
-      padding: '18px 20px',
-      marginBottom: '20px',
-      boxShadow: 'var(--shadow-raised)',
-      position: 'relative'
-    }}>
-      {/* Hidden real HTML5 audio element */}
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          preload="metadata"
-        />
-      )}
-
-      {/* Eyebrow & Live Speaker Monogram */}
-      <div style={{
+    <div
+      ref={containerRef}
+      role="region"
+      aria-label="Audio Overview Player"
+      style={{
+        backgroundColor: 'var(--bg-2)',
+        border: '1px solid var(--line-strong)',
+        borderRadius: 'var(--radius-2)',
+        boxShadow: 'var(--shadow-raised)',
+        padding: 'var(--space-4)',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '10px'
-      }}>
-        <div
-          className="mono"
-          style={{
-            fontSize: '11px',
-            letterSpacing: '0.12em',
-            color: 'var(--text-3)',
-            textTransform: 'uppercase'
-          }}
-        >
-          {audioUrl ? "DEEP DIVE CONVERSATION" : "AUDIO OVERVIEW (PODCAST)"}
+        flexDirection: 'column',
+        gap: 'var(--space-3)',
+        userSelect: 'none'
+      }}
+    >
+      {/* Title & Host Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ minWidth: 0 }}>
+          <h4
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '17px',
+              fontWeight: 400,
+              color: 'var(--text-1)',
+              lineHeight: 1.2
+            }}
+          >
+            {title}
+          </h4>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: '11px',
+              color: 'var(--text-3)',
+              letterSpacing: '0.02em'
+            }}
+          >
+            {subtitle}
+          </span>
         </div>
 
-        {/* Host Avatars */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div
-            title="Host Alex (Analyst)"
-            style={{
-              width: '22px',
-              height: '22px',
-              borderRadius: '50%',
-              backgroundColor: isPlaying && activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--bg-1)',
-              color: isPlaying && activeSpeaker === 'Alex' ? '#ffffff' : 'var(--text-3)',
-              border: `1px solid ${isPlaying && activeSpeaker === 'Alex' ? 'var(--signal)' : 'var(--line)'}`,
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all var(--duration-fast) var(--ease-out)'
-            }}
-          >
-            A
-          </div>
-          <div
-            title="Host Morgan (Curious Co-host)"
-            style={{
-              width: '22px',
-              height: '22px',
-              borderRadius: '50%',
-              backgroundColor: isPlaying && activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--bg-1)',
-              color: isPlaying && activeSpeaker === 'Morgan' ? '#ffffff' : 'var(--text-3)',
-              border: `1px solid ${isPlaying && activeSpeaker === 'Morgan' ? 'var(--signal)' : 'var(--line)'}`,
-              fontSize: '10px',
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all var(--duration-fast) var(--ease-out)'
-            }}
-          >
-            M
-          </div>
+        {/* Monogram Avatar with Pulsing Ring while playing */}
+        <div
+          title={`Host: ${hostName}`}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '32px',
+            height: '32px',
+            borderRadius: 'var(--radius-full)',
+            backgroundColor: 'var(--bg-1)',
+            border: '1px solid var(--line-strong)',
+            color: 'var(--text-1)',
+            fontSize: '11px',
+            fontWeight: 600
+          }}
+          className="font-mono"
+        >
+          {/* Pulsing ring while playing */}
+          {isPlaying && (
+            <span
+              style={{
+                position: 'absolute',
+                inset: '-3px',
+                borderRadius: 'var(--radius-full)',
+                border: '1.5px solid var(--accent)',
+                animation: 'pulse 1.2s infinite var(--ease-out)'
+              }}
+              aria-hidden="true"
+            />
+          )}
+          <span>{hostName.slice(0, 2).toUpperCase()}</span>
         </div>
       </div>
 
-      {/* Title */}
-      <h3
-        className="serif"
+      {/* 52-Bar Waveform Scrubber with Hover Time Tooltip */}
+      <div
         style={{
-          fontSize: '18px',
-          fontWeight: 400,
-          color: 'var(--text-1)',
-          marginBottom: '12px',
-          lineHeight: 1.2
+          position: 'relative',
+          width: '100%',
+          height: '48px',
+          display: 'flex',
+          alignItems: 'center',
+          cursor: 'pointer'
         }}
+        tabIndex={0}
+        role="slider"
+        aria-label="Audio Playhead Scrubber"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(actualDuration)}
+        aria-valuenow={Math.round(currentTime)}
+        aria-valuetext={`${formatAudioTime(currentTime)} of ${formatAudioTime(actualDuration)}`}
+        onKeyDown={handleKeyDown}
       >
-        {title}
-      </h3>
-
-      {/* Generate Audio CTA if not yet generated */}
-      {!audioUrl && onGenerate && (
-        <div style={{ marginBottom: '14px' }}>
-          <button
-            onClick={onGenerate}
-            disabled={isGenerating}
-            style={{
-              width: '100%',
-              padding: '10px 14px',
-              backgroundColor: 'var(--accent)',
-              color: 'var(--accent-text)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-ui)',
-              fontWeight: 600,
-              cursor: isGenerating ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              transition: 'opacity var(--duration-fast) var(--ease-out)'
-            }}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 size={16} className="spin-animate" />
-                <span>Synthesizing Two-Host Podcast Dialogue...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} />
-                <span>Generate Deep Dive Audio Overview</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Waveform Scrubber Surface */}
-      <div style={{ position: 'relative', height: '48px', marginBottom: '8px' }}>
         <canvas
           ref={canvasRef}
-          width={320}
-          height={48}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
           style={{
             width: '100%',
             height: '100%',
-            cursor: 'ew-resize',
-            display: 'block'
+            touchAction: 'none'
           }}
-          title="Click or drag waveform to scrub"
         />
-      </div>
 
-      {/* Time Display */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '14px'
-      }}>
-        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-2)' }}>
-          {formatTime(currentTime)}
-        </span>
-        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-          {formatTime(duration)}
-        </span>
-      </div>
-
-      {/* Primary Transport Controls */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        {/* Playback Skip Buttons + Signal Play Button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            onClick={() => handleSkip(-10)}
+        {/* Hover Time Tooltip */}
+        {hoverTime !== null && hoverX !== null && (
+          <div
+            className="font-mono"
             style={{
+              position: 'absolute',
+              top: '-20px',
+              left: `${hoverX}px`,
+              transform: 'translateX(-50%)',
+              backgroundColor: 'var(--bg-0)',
+              color: 'var(--text-1)',
+              border: '1px solid var(--line)',
+              borderRadius: '3px',
+              padding: '1px 5px',
+              fontSize: '10px',
+              pointerEvents: 'none',
+              zIndex: 10
+            }}
+          >
+            {formatAudioTime(hoverTime)}
+          </div>
+        )}
+      </div>
+
+      {/* Time Labels Row in Tabular-Nums */}
+      <div
+        className="font-mono"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '11px',
+          color: 'var(--text-3)',
+          fontVariantNumeric: 'tabular-nums'
+        }}
+      >
+        <span>{formatAudioTime(currentTime)}</span>
+        <span>{formatAudioTime(actualDuration)}</span>
+      </div>
+
+      {/* Controls Row: Back 10, 52px Play/Pause Circle, Forward 10, Speed */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 'var(--space-1)'
+        }}
+      >
+        {/* Playback Transport Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          {/* Back 10 Seconds */}
+          <button
+            type="button"
+            aria-label="Rewind 10 seconds"
+            onClick={() => jump(-10)}
+            style={{
+              background: 'none',
+              border: 'none',
               color: 'var(--text-2)',
-              padding: '6px',
-              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color var(--duration-fast) var(--ease-out)',
-              cursor: 'pointer'
+              padding: '4px'
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
-            title="Rewind 10s"
           >
             <RotateCcw size={16} />
           </button>
 
-          {/* 46px Signal Play Button */}
+          {/* 52px Accent Play/Pause Circle */}
           <button
+            type="button"
+            aria-label={isPlaying ? 'Pause audio overview' : 'Play audio overview'}
             onClick={togglePlay}
-            disabled={isGenerating}
-            aria-label={isPlaying ? "Pause conversation" : "Play conversation"}
             style={{
               width: '46px',
               height: '46px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--signal)',
-              color: '#ffffff',
+              borderRadius: 'var(--radius-full)',
+              backgroundColor: 'var(--accent)',
+              color: 'var(--accent-ink)',
+              border: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 4px 12px rgba(255, 90, 54, 0.35)',
-              transition: 'transform var(--duration-fast) var(--ease-out)',
-              cursor: isGenerating ? 'not-allowed' : 'pointer'
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-raised)',
+              transition: 'transform var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out)'
             }}
-            onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.96)')}
-            onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
             {isPlaying ? (
-              <Pause size={20} fill="#ffffff" />
+              <Pause size={18} fill="currentColor" strokeWidth={0} />
             ) : (
-              <Play size={20} fill="#ffffff" style={{ marginLeft: '2px' }} />
+              <Play size={18} fill="currentColor" strokeWidth={0} style={{ marginLeft: '2px' }} />
             )}
           </button>
 
+          {/* Forward 10 Seconds */}
           <button
-            onClick={() => handleSkip(10)}
+            type="button"
+            aria-label="Skip forward 10 seconds"
+            onClick={() => jump(10)}
             style={{
+              background: 'none',
+              border: 'none',
               color: 'var(--text-2)',
-              padding: '6px',
-              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color var(--duration-fast) var(--ease-out)',
-              cursor: 'pointer'
+              padding: '4px'
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-1)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-2)')}
-            title="Forward 10s"
           >
             <RotateCw size={16} />
           </button>
         </div>
 
-        {/* Speed Pills: Segmented Mono Control */}
-        <div style={{
-          display: 'flex',
-          gap: '3px',
-          backgroundColor: 'var(--bg-1)',
-          padding: '2px',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--line)'
-        }}>
-          {[0.8, 1.0, 1.25, 1.5, 2.0].map((speed) => (
-            <button
-              key={speed}
-              onClick={() => setPlaybackSpeed(speed)}
-              className="mono"
-              style={{
-                fontSize: '10px',
-                padding: '3px 6px',
-                borderRadius: '3px',
-                backgroundColor: playbackSpeed === speed ? 'var(--bg-0)' : 'transparent',
-                color: playbackSpeed === speed ? 'var(--text-1)' : 'var(--text-3)',
-                border: playbackSpeed === speed ? '1px solid var(--line-strong)' : '1px solid transparent',
-                fontWeight: playbackSpeed === speed ? 600 : 400,
-                transition: 'all var(--duration-fast) var(--ease-out)',
-                cursor: 'pointer'
-              }}
-            >
-              {speed}x
-            </button>
-          ))}
+        {/* Speed Segmented Control */}
+        <div
+          role="radiogroup"
+          aria-label="Playback speed"
+          style={{
+            display: 'inline-flex',
+            backgroundColor: 'var(--bg-1)',
+            border: '1px solid var(--line)',
+            borderRadius: 'var(--radius-1)',
+            padding: '2px'
+          }}
+        >
+          {SPEED_OPTIONS.map((rate) => {
+            const isSelected = playbackRate === rate;
+            return (
+              <button
+                key={rate}
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                onClick={() => setRate(rate)}
+                className="font-mono"
+                style={{
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  fontWeight: isSelected ? 600 : 400,
+                  backgroundColor: isSelected ? 'var(--bg-2)' : 'transparent',
+                  color: isSelected ? 'var(--accent-text)' : 'var(--text-3)',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  transition: 'background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out)'
+                }}
+              >
+                {rate}x
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
   );
-};
+}
+
+export default AudioPlayer;
