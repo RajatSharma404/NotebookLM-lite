@@ -1,0 +1,280 @@
+/* ==========================================================================
+   NotebookLM-lite Base Styles & Craft Architecture
+   Follows: design-system, design-taste-frontend, emil-design-eng, fixing-motion-performance
+   ========================================================================== */
+
+@import "./tokens.css";
+
+/* Universal Box Sizing & Font Smoothing */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--text-14);
+  line-height: var(--lh-normal);
+  font-weight: 400;
+  accent-color: var(--accent);
+  transition: background-color var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+}
+
+/* ==========================================================================
+   TEXTURE & AMBIENCE (3-4% SVG-noise grain overlay)
+   ========================================================================== */
+.app-noise-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Radial-masked dot grid for empty state */
+.dot-grid-bg {
+  position: relative;
+}
+
+.dot-grid-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(var(--line-strong) 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
+  mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 75%);
+  z-index: 0;
+}
+
+.dot-grid-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   TYPOGRAPHY RULES & TABULAR METADATA
+   ========================================================================== */
+h1, h2, h3, h4, .font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  color: var(--text-1);
+}
+
+code, kbd, samp, pre, .font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ==========================================================================
+   FOCUS VISIBILITY (fixing-accessibility)
+   ========================================================================== */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   INTERACTION CRAFT (emil-design-eng)
+   ========================================================================== */
+button, [role="button"], input[type="submit"], input[type="reset"] {
+  cursor: pointer;
+  user-select: none;
+  font-family: inherit;
+  transition: transform var(--dur-1) var(--ease-out),
+              background-color var(--dur-1) var(--ease-out),
+              border-color var(--dur-1) var(--ease-out),
+              color var(--dur-1) var(--ease-out),
+              box-shadow var(--dur-1) var(--ease-out);
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.98);
+}
+
+/* Suggestion Row Hover Craft */
+.research-suggestion-row:hover .suggestion-index {
+  color: var(--accent-text) !important;
+}
+
+.research-suggestion-row:hover .suggestion-text {
+  transform: translateX(4px);
+  color: var(--text-1);
+}
+
+/* 600ms Accent Pulse Highlight */
+@keyframes accentPulse {
+  0% {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    background-color: var(--accent-muted);
+  }
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: -1px;
+    background-color: transparent;
+  }
+}
+
+.accent-pulse-highlight {
+  animation: accentPulse 600ms var(--ease-out) forwards;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes checkStroke {
+  from { stroke-dashoffset: 16; }
+  to { stroke-dashoffset: 0; }
+}
+
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   MOTION RESTRICTIONS (fixing-motion-performance)
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transform: none !important;
+  }
+}
+
+/* ==========================================================================
+   CUSTOM SCROLLBAR (Scholarly 1px Hairline feel)
+   ========================================================================== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--radius-1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+}
+
+/* Accessible Screen Reader Only Utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ==========================================================================
+   RESPONSIVE PANE SYSTEM (>=1280px three panes, 768-1279px drawer, <768px mobile)
+   ========================================================================== */
+@media (min-width: 1280px) {
+  .app-panes-layout {
+    flex-direction: row;
+  }
+}
+
+@media (max-width: 1279px) and (min-width: 768px) {
+  .app-panes-layout aside[aria-label="Studio Panel"] {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-drawer);
+    box-shadow: var(--shadow-popover);
+    border-left: 1px solid var(--line-strong);
+  }
+}
+
+@media (max-width: 767px) {
+  .app-panes-layout {
+    flex-direction: column;
+  }
+  .app-panes-layout aside {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    height: 70vh !important;
+    z-index: var(--z-modal);
+    border-top: 1px solid var(--line-strong);
+    border-radius: var(--radius-2) var(--radius-2) 0 0;
+    box-shadow: var(--shadow-popover);
+  }
+
+  button, [role="button"] {
+    min-height: 40px;
+    min-width: 40px;
+  }
+}
+
+@media (max-width: 640px) {
+  .header-export-btn,
+  .header-model-selector {
+    display: none !important;
+  }
+  .header-notebook-title {
+    max-width: 130px !important;
+  }
+}
+
