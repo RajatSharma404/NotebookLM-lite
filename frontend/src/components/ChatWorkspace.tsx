@@ -2,7 +2,20 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Message, Source, CitationItem } from '../types';
 import { CitationPill } from './CitationPill';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { ArrowUp, Copy, Bookmark, Check, AlertCircle } from 'lucide-react';
+import { 
+  ArrowUp, 
+  Copy, 
+  Bookmark, 
+  Check, 
+  AlertCircle, 
+  Sparkles, 
+  Terminal, 
+  Cpu, 
+  Zap, 
+  Layers,
+  CornerDownLeft,
+  Search
+} from 'lucide-react';
 
 interface ChatWorkspaceProps {
   messages: Message[];
@@ -13,13 +26,21 @@ interface ChatWorkspaceProps {
   onSaveToNote: (content: string) => void;
 }
 
-interface SuggestedPromptRowProps {
+interface ResearchStarterCardProps {
   index: string;
+  category: string;
+  title: string;
   prompt: string;
   onClick: () => void;
 }
 
-const SuggestedPromptRow: React.FC<SuggestedPromptRowProps> = ({ index, prompt, onClick }) => {
+const ResearchStarterCard: React.FC<ResearchStarterCardProps> = ({ 
+  index, 
+  category, 
+  title, 
+  prompt, 
+  onClick 
+}) => {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -30,56 +51,56 @@ const SuggestedPromptRow: React.FC<SuggestedPromptRowProps> = ({ index, prompt, 
       style={{
         width: '100%',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '16px 12px',
-        borderBottom: '1px solid var(--line)',
-        backgroundColor: hovered ? 'var(--bg-1)' : 'transparent',
+        flexDirection: 'column',
         textAlign: 'left',
+        padding: '14px 16px',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: hovered ? 'var(--bg-2)' : 'var(--bg-1)',
+        border: hovered ? '1px solid var(--accent-border)' : '1px solid var(--line)',
+        boxShadow: hovered ? 'var(--shadow-glow)' : 'none',
+        transform: hovered ? 'translateY(-2px)' : 'none',
+        transition: 'all var(--duration-fast) var(--ease-spring)',
         cursor: 'pointer',
-        transition: 'background-color var(--duration-fast) var(--ease-out)',
-        borderRadius: 'var(--radius-sm)'
+        position: 'relative',
+        overflow: 'hidden'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flex: 1, minWidth: 0 }}>
-        <span
-          className="mono"
-          style={{
-            fontSize: '12px',
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <span 
+          className="mono" 
+          style={{ 
+            fontSize: '9px', 
+            fontWeight: 700, 
+            letterSpacing: '0.1em',
             color: hovered ? 'var(--accent)' : 'var(--text-3)',
-            transition: 'color var(--duration-fast) var(--ease-out)',
-            width: '24px',
-            flexShrink: 0
+            padding: '2px 5px',
+            borderRadius: '3px',
+            backgroundColor: hovered ? 'var(--accent-muted)' : 'var(--bg-2)',
+            border: `1px solid ${hovered ? 'var(--accent-border)' : 'var(--line)'}`
           }}
         >
-          {index}
+          {index} // {category}
         </span>
-        <span
-          style={{
-            fontFamily: 'var(--font-ui)',
-            fontSize: '15px',
-            color: hovered ? 'var(--text-1)' : 'var(--text-2)',
-            transform: hovered ? 'translateX(4px)' : 'translateX(0)',
-            transition: 'all var(--duration-fast) var(--ease-out)',
-            lineHeight: 1.45
+        <span 
+          style={{ 
+            fontSize: '12px', 
+            color: 'var(--accent)', 
+            opacity: hovered ? 1 : 0, 
+            transform: hovered ? 'translateX(0)' : 'translateX(-4px)',
+            transition: 'all var(--duration-fast) var(--ease-spring)'
           }}
         >
-          {prompt}
+          ↵
         </span>
       </div>
-      <span
-        style={{
-          color: 'var(--accent)',
-          fontSize: '16px',
-          opacity: hovered ? 1 : 0,
-          transform: hovered ? 'translateX(0)' : 'translateX(-6px)',
-          transition: 'all var(--duration-fast) var(--ease-out)',
-          marginLeft: '12px',
-          flexShrink: 0
-        }}
-      >
-        →
-      </span>
+
+      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-1)', marginBottom: '4px' }}>
+        {title}
+      </div>
+
+      <div style={{ fontSize: '11px', color: 'var(--text-2)', lineHeight: 1.45 }}>
+        {prompt}
+      </div>
     </button>
   );
 };
@@ -113,7 +134,7 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
-      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 44), 200)}px`;
+      textareaRef.current.style.height = `${Math.min(Math.max(scrollHeight, 44), 180)}px`;
     }
   }, [inputQuery]);
 
@@ -146,46 +167,31 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
     setTimeout(() => setSavedId(null), 2000);
   };
 
-  // Render text replacing [1], [2] with interactive CitationPill
-  const renderMessageContent = (content: string, citations: CitationItem[]) => {
-    const citationMap = new Map<number, CitationItem>();
-    citations.forEach(cit => citationMap.set(cit.index, cit));
-
-    const parts: React.ReactNode[] = [];
-    const regex = /\[(\d+)\]/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(content)) !== null) {
-      const start = match.index;
-      const end = regex.lastIndex;
-
-      if (start > lastIndex) {
-        parts.push(content.substring(lastIndex, start));
-      }
-
-      const citIndex = parseInt(match[1], 10);
-      const citation = citationMap.get(citIndex);
-
-      parts.push(
-        <CitationPill key={`cit-${start}`} index={citIndex} citation={citation} />
-      );
-
-      lastIndex = end;
+  const starters = [
+    {
+      index: '01',
+      category: 'SYNTHESIZE',
+      title: 'Synthesize Core Arguments',
+      prompt: 'Extract the foundational premises, methodology, and primary conclusions across all active sources.'
+    },
+    {
+      index: '02',
+      category: 'DIALECTIC',
+      title: 'Cross-Source Comparison',
+      prompt: 'Identify points of agreement and tension between the methodologies and evidence presented.'
+    },
+    {
+      index: '03',
+      category: 'EXTRACTION',
+      title: 'Formulate Executive Brief',
+      prompt: 'Summarize actionable takeaways, key statistical metrics, and strategic implications.'
+    },
+    {
+      index: '04',
+      category: 'VERIFICATION',
+      title: 'Evaluate Evidentiary Rigor',
+      prompt: 'Scrutinize the cited evidence, empirical limitations, and unanswered questions in the text.'
     }
-
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
-    }
-
-    return parts;
-  };
-
-  const starterPrompts = [
-    "Summarize the key findings across all active sources.",
-    "What are the main theoretical contributions discussed?",
-    "Extract an outline of critical arguments and conclusions.",
-    "Compare the methodologies outlined in the documents."
   ];
 
   return (
@@ -198,101 +204,200 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Background dot grid pattern */}
-      <div className="dot-grid-pattern" />
+      {/* Background Cyber Grid */}
+      <div className="cyber-grid" />
 
       {/* Messages Scroll Area */}
       <div style={{
         flex: 1,
         overflowY: 'auto',
-        padding: '32px 32px 16px',
+        padding: '24px 28px 20px',
         position: 'relative',
         zIndex: 1
       }}>
         {messages.length === 0 ? (
           <div style={{
-            maxWidth: '720px',
-            margin: '8vh auto 0',
-            textAlign: 'left'
+            maxWidth: '740px',
+            margin: '4vh auto 0',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px'
           }}>
-            {/* Eyebrow */}
-            <div
-              className="mono"
+            {/* Top Mission Control Telemetry Banner */}
+            <div 
               style={{
-                fontSize: '11px',
-                letterSpacing: '0.15em',
-                color: 'var(--text-3)',
-                marginBottom: '16px',
-                textTransform: 'uppercase'
-              }}
-            >
-              {activeSources.length > 0
-                ? `GROUNDED / ${activeSources.length} ${activeSources.length === 1 ? 'SOURCE' : 'SOURCES'} / ${effectiveTokens.toLocaleString()} TOKENS`
-                : 'UNGROUNDED / 0 SOURCES / 0 TOKENS'}
-            </div>
-
-            {/* Display H1 */}
-            <h1
-              className="serif"
-              style={{
-                fontSize: '56px',
-                fontWeight: 400,
-                lineHeight: 1.05,
-                color: 'var(--text-1)',
-                marginBottom: '16px',
-                letterSpacing: '-0.02em'
-              }}
-            >
-              Ask your sources.
-            </h1>
-
-            {/* Subline */}
-            <p style={{
-              fontSize: '16px',
-              color: 'var(--text-2)',
-              lineHeight: 1.5,
-              maxWidth: '52ch',
-              marginBottom: '40px'
-            }}>
-              Every answer is strictly attributed with verifiable inline citations grounded in your uploaded documents.
-            </p>
-
-            {/* Warning or Suggested Prompts */}
-            {activeSources.length === 0 ? (
-              <div style={{
-                padding: '14px 18px',
-                borderRadius: 'var(--radius-sm)',
                 backgroundColor: 'var(--bg-1)',
                 border: '1px solid var(--line-strong)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '20px 24px',
+                boxShadow: 'var(--shadow-raised)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {/* Subtle accent glow line at top */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '2px',
+                background: 'linear-gradient(90deg, transparent, var(--accent), transparent)'
+              }} />
+
+              {/* Status Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="pulse-online" style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: activeSources.length > 0 ? 'var(--accent)' : 'var(--signal)',
+                    display: 'inline-block'
+                  }} />
+                  <span className="mono" style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-1)' }}>
+                    {activeSources.length > 0 ? 'SYS.MISSION_CONTROL // ACTIVE' : 'SYS.STANDBY // ZERO_SOURCES'}
+                  </span>
+                </div>
+
+                <span 
+                  className="mono" 
+                  style={{ 
+                    fontSize: '10px', 
+                    color: 'var(--accent)', 
+                    backgroundColor: 'var(--accent-muted)', 
+                    padding: '2px 8px', 
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid var(--accent-border)'
+                  }}
+                >
+                  STRICT RAG GROUNDED
+                </span>
+              </div>
+
+              {/* Console Headline */}
+              <h1 style={{
+                fontSize: '24px',
+                fontWeight: 700,
+                letterSpacing: '-0.02em',
+                color: 'var(--text-1)',
+                marginBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                Interactive Research Synthesizer
+              </h1>
+
+              <p style={{
+                fontSize: '13px',
                 color: 'var(--text-2)',
+                lineHeight: 1.5,
+                maxWidth: '620px',
+                marginBottom: '18px'
+              }}>
+                Every answer query runs through hybrid dense-vector & BM25Okapi retrieval.
+                Facts are strictly attributed with verifiable inline citation tokens linked directly to your source chunks.
+              </p>
+
+              {/* Real Telemetry Strip */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '12px',
+                paddingTop: '14px',
+                borderTop: '1px solid var(--line)'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+                    Active Ingested
+                  </span>
+                  <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-1)' }}>
+                    {activeSources.length} {activeSources.length === 1 ? 'Document' : 'Documents'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+                    Context Density
+                  </span>
+                  <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent)' }}>
+                    {effectiveTokens.toLocaleString()} Tokens
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+                    Grounding Protocol
+                  </span>
+                  <span className="mono" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--accent-emerald)' }}>
+                    Reciprocal Rank Fusion
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Warning if no sources active */}
+            {activeSources.length === 0 && (
+              <div style={{
+                padding: '14px 18px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(255, 51, 102, 0.08)',
+                border: '1px solid rgba(255, 51, 102, 0.3)',
+                color: 'var(--text-1)',
                 fontSize: '13px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <AlertCircle size={16} color="var(--signal)" />
-                <span>No active sources selected. Enable or upload documents in the left ledger to begin retrieval.</span>
+                <AlertCircle size={18} color="var(--signal)" />
+                <span>
+                  No active documents selected. Toggle or ingest files in the Knowledge Sources ledger on the left to activate grounding.
+                </span>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {starterPrompts.map((prompt, i) => (
-                  <SuggestedPromptRow
-                    key={i}
-                    index={`0${i + 1}`}
-                    prompt={prompt}
-                    onClick={() => onSendMessage(prompt)}
+            )}
+
+            {/* Asymmetric Starter Modules */}
+            <div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '10px'
+              }}>
+                <span className="mono" style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-3)', textTransform: 'uppercase' }}>
+                  QUICK TELEMETRY PROMPTS
+                </span>
+                <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+                  Click to execute query
+                </span>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px'
+              }}>
+                {starters.map((st) => (
+                  <ResearchStarterCard
+                    key={st.index}
+                    index={st.index}
+                    category={st.category}
+                    title={st.title}
+                    prompt={st.prompt}
+                    onClick={() => onSendMessage(st.prompt)}
                   />
                 ))}
               </div>
-            )}
+            </div>
           </div>
         ) : (
           <div style={{
-            maxWidth: '720px',
+            maxWidth: '740px',
             margin: '0 auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: '36px'
+            gap: '28px'
           }}>
             {messages.map((msg) => (
               <div
@@ -304,181 +409,188 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
                 }}
               >
                 {msg.role === 'user' ? (
-                  // User Turn: Editorial serif, left rule, no bubble
+                  /* User Turn: High-contrast terminal query card */
                   <div style={{
-                    borderLeft: '2px solid var(--line-strong)',
-                    paddingLeft: '16px',
-                    paddingTop: '4px',
-                    paddingBottom: '4px'
+                    backgroundColor: 'var(--bg-1)',
+                    border: '1px solid var(--line-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '14px 18px',
+                    position: 'relative'
                   }}>
-                    <div
-                      className="mono"
-                      style={{
-                        fontSize: '10px',
-                        letterSpacing: '0.12em',
-                        color: 'var(--text-3)',
-                        marginBottom: '6px',
-                        textTransform: 'uppercase'
-                      }}
-                    >
-                      QUERY
-                    </div>
-                    <div
-                      className="serif"
-                      style={{
-                        fontSize: '22px',
-                        lineHeight: 1.4,
-                        color: 'var(--text-1)',
-                        fontWeight: 400
-                      }}
-                    >
-                      {msg.content}
-                    </div>
-                  </div>
-                ) : (
-                  // Assistant Turn: Clean reading prose, inline citations, no card box
-                  <div style={{
-                    paddingLeft: '4px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{
-                        width: '5px',
-                        height: '5px',
-                        borderRadius: '50%',
-                        backgroundColor: 'var(--accent)'
-                      }} />
-                      <span
-                        className="mono"
-                        style={{
-                          fontSize: '10px',
-                          letterSpacing: '0.12em',
-                          color: 'var(--text-3)',
-                          textTransform: 'uppercase'
-                        }}
-                      >
-                        GROUNDED SYNTHESIS
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: '8px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Terminal size={12} style={{ color: 'var(--accent)' }} />
+                        <span className="mono" style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--text-3)' }}>
+                          USER // QUERY
+                        </span>
+                      </div>
+                      <span className="mono" style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
                     <div style={{
-                      fontSize: '15.5px',
-                      lineHeight: 1.7,
+                      fontSize: '15px',
+                      fontWeight: 500,
                       color: 'var(--text-1)',
-                      fontFamily: 'var(--font-ui)'
+                      lineHeight: 1.5
                     }}>
-                      <MarkdownRenderer content={msg.content} citations={msg.citations} />
+                      {msg.content}
                     </div>
-
-                    {/* Action Bar */}
+                  </div>
+                ) : (
+                  /* Assistant Turn: Precision synthesis pane */
+                  <div style={{
+                    backgroundColor: 'var(--bg-1)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '18px 20px',
+                    boxShadow: 'var(--shadow-sm)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}>
+                    {/* Header Strip */}
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      marginTop: '4px'
+                      justifyContent: 'space-between',
+                      borderBottom: '1px solid var(--line)',
+                      paddingBottom: '10px'
                     }}>
-                      <button
-                        onClick={() => handleCopy(msg.id, msg.content)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '11px',
-                          color: copiedId === msg.id ? 'var(--text-1)' : 'var(--text-3)',
-                          padding: '4px 8px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--line)',
-                          transition: 'all var(--duration-fast) var(--ease-out)'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = 'var(--line-strong)';
-                          e.currentTarget.style.color = 'var(--text-1)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = 'var(--line)';
-                          e.currentTarget.style.color = copiedId === msg.id ? 'var(--text-1)' : 'var(--text-3)';
-                        }}
-                      >
-                        {copiedId === msg.id ? <Check size={12} color="var(--accent)" /> : <Copy size={12} />}
-                        <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: 'var(--accent)',
+                          boxShadow: '0 0 6px var(--accent)'
+                        }} />
+                        <span className="mono" style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent)' }}>
+                          GROUNDED SYNTHESIS
+                        </span>
+                        {msg.citations && msg.citations.length > 0 && (
+                          <span 
+                            className="mono" 
+                            style={{ 
+                              fontSize: '9px', 
+                              padding: '1px 5px', 
+                              borderRadius: '3px', 
+                              backgroundColor: 'var(--accent-muted)', 
+                              color: 'var(--accent)', 
+                              border: '1px solid var(--accent-border)' 
+                            }}
+                          >
+                            {msg.citations.length} {msg.citations.length === 1 ? 'citation' : 'citations'}
+                          </span>
+                        )}
+                      </div>
 
-                      <button
-                        onClick={() => handleSave(msg.id, msg.content)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '11px',
-                          color: savedId === msg.id ? 'var(--text-1)' : 'var(--text-3)',
-                          padding: '4px 8px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--line)',
-                          transition: 'all var(--duration-fast) var(--ease-out)'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.borderColor = 'var(--line-strong)';
-                          e.currentTarget.style.color = 'var(--text-1)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.borderColor = 'var(--line)';
-                          e.currentTarget.style.color = savedId === msg.id ? 'var(--text-1)' : 'var(--text-3)';
-                        }}
-                      >
-                        {savedId === msg.id ? <Check size={12} color="var(--accent)" /> : <Bookmark size={12} />}
-                        <span>{savedId === msg.id ? 'Saved to Notes' : 'Save to Note'}</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          onClick={() => handleCopy(msg.id, msg.content)}
+                          className="mono"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            color: copiedId === msg.id ? 'var(--accent)' : 'var(--text-3)',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-xs)',
+                            border: '1px solid var(--line)',
+                            backgroundColor: 'var(--bg-2)'
+                          }}
+                        >
+                          {copiedId === msg.id ? <Check size={11} /> : <Copy size={11} />}
+                          <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleSave(msg.id, msg.content)}
+                          className="mono"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            fontSize: '11px',
+                            color: savedId === msg.id ? 'var(--accent)' : 'var(--text-3)',
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-xs)',
+                            border: '1px solid var(--line)',
+                            backgroundColor: 'var(--bg-2)'
+                          }}
+                        >
+                          {savedId === msg.id ? <Check size={11} /> : <Bookmark size={11} />}
+                          <span>{savedId === msg.id ? 'Saved' : 'Save Note'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Content Markdown */}
+                    <div style={{
+                      fontSize: '14.5px',
+                      lineHeight: 1.65,
+                      color: 'var(--text-1)'
+                    }}>
+                      <MarkdownRenderer content={msg.content} citations={msg.citations} />
                     </div>
                   </div>
                 )}
               </div>
             ))}
 
-            {/* Streaming Loading Indicator */}
+            {/* Live Streaming State */}
             {isStreaming && (
               <div style={{
+                backgroundColor: 'var(--bg-1)',
+                border: '1px solid var(--accent-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '16px 20px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '10px',
-                padding: '12px 0 20px',
-                color: 'var(--text-2)'
+                gap: '8px'
               }}>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
                   fontSize: '12px',
-                  fontFamily: 'var(--font-mono)'
-                }}>
-                  <span className="pulsing-dot" style={{
+                  color: 'var(--accent)'
+                }} className="mono">
+                  <span className="pulse-online" style={{
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
                     backgroundColor: 'var(--accent)',
                     display: 'inline-block'
                   }} />
-                  <span>Reading {activeSources.length} sources and grounding citations...</span>
+                  <span>Cross-referencing vector chunks and grounding citations...</span>
                 </div>
                 <div style={{
-                  width: '180px',
+                  width: '100%',
                   height: '2px',
                   backgroundColor: 'var(--line)',
-                  position: 'relative',
+                  borderRadius: '2px',
                   overflow: 'hidden',
-                  borderRadius: '2px'
+                  position: 'relative'
                 }}>
                   <div
-                    className="shimmer-bar"
                     style={{
                       position: 'absolute',
                       top: 0,
                       left: 0,
                       bottom: 0,
-                      width: '50%',
-                      backgroundColor: 'var(--accent)'
+                      width: '40%',
+                      backgroundColor: 'var(--accent)',
+                      boxShadow: '0 0 10px var(--accent)'
                     }}
+                    className="pulse-online"
                   />
                 </div>
               </div>
@@ -488,24 +600,26 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
         )}
       </div>
 
-      {/* Composer Area - One of only TWO raised surfaces in the app */}
+      {/* Floating Precision Command Bar */}
       <div style={{
-        padding: '16px 32px 20px',
-        backgroundColor: 'var(--bg-0)',
+        padding: '14px 28px 18px',
+        backgroundColor: 'var(--glass-bg)',
         borderTop: '1px solid var(--line)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         position: 'relative',
-        zIndex: 2
+        zIndex: 20
       }}>
-        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '740px', margin: '0 auto' }}>
           <form
             onSubmit={handleSubmit}
             style={{
               backgroundColor: 'var(--bg-2)',
               border: isFocused ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
               borderRadius: 'var(--radius-lg)',
-              boxShadow: isFocused ? '0 0 0 4px var(--accent-ring), var(--shadow-raised)' : 'var(--shadow-raised)',
-              transition: 'border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out)',
-              padding: '12px 14px 10px',
+              boxShadow: isFocused ? 'var(--shadow-raised), 0 0 16px var(--accent-glow)' : 'var(--shadow-sm)',
+              transition: 'all var(--duration-fast) var(--ease-spring)',
+              padding: '12px 16px 10px',
               display: 'flex',
               flexDirection: 'column',
               gap: '8px'
@@ -518,17 +632,17 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about findings, compare methodologies, request summaries..."
+              placeholder="Ask questions across active sources, contrast findings, synthesize notes..."
               rows={1}
               style={{
                 width: '100%',
                 minHeight: '44px',
-                maxHeight: '200px',
+                maxHeight: '180px',
                 backgroundColor: 'transparent',
                 border: 'none',
+                boxShadow: 'none',
                 color: 'var(--text-1)',
-                fontSize: '15px',
-                fontFamily: 'var(--font-ui)',
+                fontSize: '14px',
                 lineHeight: 1.5,
                 resize: 'none',
                 outline: 'none'
@@ -539,82 +653,56 @@ export const ChatWorkspace: React.FC<ChatWorkspaceProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              paddingTop: '4px'
+              paddingTop: '4px',
+              borderTop: '1px solid var(--line)'
             }}>
-              <div style={{
-                fontSize: '11px',
-                color: 'var(--text-3)',
-                fontFamily: 'var(--font-mono)'
-              }}>
-                <span style={{
-                  padding: '1px 5px',
-                  borderRadius: '3px',
-                  border: '1px solid var(--line-strong)',
-                  marginRight: '4px'
-                }}>Enter</span> send
-                <span style={{ margin: '0 6px' }}>•</span>
-                <span style={{
-                  padding: '1px 5px',
-                  borderRadius: '3px',
-                  border: '1px solid var(--line-strong)',
-                  marginRight: '4px'
-                }}>Shift+Enter</span> newline
+              <div className="mono" style={{ fontSize: '11px', color: 'var(--text-3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                  <CornerDownLeft size={10} /> Send: <strong style={{ color: 'var(--text-2)' }}>↵ Enter</strong>
+                </span>
+                <span>•</span>
+                <span>Newline: <strong style={{ color: 'var(--text-2)' }}>Shift+Enter</strong></span>
               </div>
 
-              <button
-                type="submit"
-                disabled={!inputQuery.trim() || isStreaming}
-                aria-label="Send message"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: 'var(--radius-md)',
-                  backgroundColor: inputQuery.trim() && !isStreaming ? 'var(--accent)' : 'transparent',
-                  color: inputQuery.trim() && !isStreaming ? 'var(--ink)' : 'var(--text-3)',
-                  border: inputQuery.trim() && !isStreaming ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: inputQuery.trim() && !isStreaming ? 'pointer' : 'not-allowed',
-                  transition: 'all var(--duration-fast) var(--ease-out)',
-                  fontWeight: 600
-                }}
-              >
-                <ArrowUp size={16} strokeWidth={2.5} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span 
+                  className="mono" 
+                  style={{ 
+                    fontSize: '10px', 
+                    color: activeSources.length > 0 ? 'var(--accent)' : 'var(--signal)',
+                    backgroundColor: 'var(--bg-1)',
+                    padding: '2px 6px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--line)'
+                  }}
+                >
+                  {activeSources.length} sources active
+                </span>
+
+                <button
+                  type="submit"
+                  disabled={!inputQuery.trim() || isStreaming}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: 'var(--radius-sm)',
+                    backgroundColor: inputQuery.trim() && !isStreaming ? 'var(--accent)' : 'var(--bg-3)',
+                    color: inputQuery.trim() && !isStreaming ? 'var(--accent-text)' : 'var(--text-3)',
+                    border: `1px solid ${inputQuery.trim() && !isStreaming ? 'var(--accent)' : 'var(--line)'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: inputQuery.trim() && !isStreaming ? 'pointer' : 'not-allowed',
+                    boxShadow: inputQuery.trim() && !isStreaming ? 'var(--shadow-glow)' : 'none',
+                    transition: 'all var(--duration-fast) var(--ease-spring)'
+                  }}
+                  aria-label="Send query"
+                >
+                  <ArrowUp size={16} strokeWidth={2.5} />
+                </button>
+              </div>
             </div>
           </form>
-
-          {/* Under-composer Grounding Status */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: '8px',
-            padding: '0 4px',
-            fontSize: '11px',
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--text-3)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span
-                className="pulsing-dot"
-                style={{
-                  display: 'inline-block',
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  backgroundColor: activeSources.length > 0 ? 'var(--accent)' : 'var(--signal)'
-                }}
-              />
-              <span>
-                {activeSources.length > 0
-                  ? `${activeSources.length} active in context • ${effectiveTokens.toLocaleString()} tokens`
-                  : '0 active sources in context'}
-              </span>
-            </div>
-            <span>Strict grounding active</span>
-          </div>
         </div>
       </div>
     </div>
