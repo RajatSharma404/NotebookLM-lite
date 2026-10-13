@@ -1,0 +1,143 @@
+/* ==========================================================================
+   NotebookLM-lite Scholarly "Paper & Ink" Design Tokens
+   Follows: notebooklm-design-system, design-taste-frontend, design-theme-guide, design-system
+   ========================================================================== */
+
+:root {
+  /* Typography Families */
+  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --font-ui: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Geist Mono", monospace;
+
+  /* Type Scale: 12, 13, 14, 16, 20, 32, 56 (max weight 600) */
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-32: 32px;
+  --text-56: 56px;
+
+  /* Line Heights */
+  --lh-tight: 1.15;
+  --lh-normal: 1.45;
+  --lh-body: 1.65;
+
+  /* Spacing Scale (4px Base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* Corner Radii - Exactly two structural radii + pill */
+  --radius-1: 6px;     /* Controls, buttons, inputs, pills */
+  --radius-2: 14px;    /* The TWO raised surfaces only (Composer, Audio Player) */
+  --radius-full: 9999px; /* Badges & pills only */
+
+  /* Layering Z-Indices */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-drawer: 20;
+  --z-popover: 30;
+  --z-modal: 40;
+  --z-toast: 50;
+
+  /* Motion & Physics */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 400ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ==========================================================================
+   DARK "INK" PALETTE (Default)
+   ========================================================================== */
+:root,
+:root[data-theme="dark"] {
+  /* Surfaces: Warm ink-black canvas, dock, and raised surfaces */
+  --bg-0: #0C0C0B;        /* App Canvas Background */
+  --bg-1: #131311;        /* Panels & Dock */
+  --bg-2: #1B1B18;        /* The TWO Raised Surfaces */
+  --bg-hover: rgba(242, 238, 226, 0.04);
+  --bg-active: rgba(242, 238, 226, 0.08);
+
+  /* Hairline 1px Rules */
+  --line: rgba(242, 238, 226, 0.10);
+  --line-strong: rgba(242, 238, 226, 0.22);
+  --line-focus: rgba(214, 255, 63, 0.50);
+
+  /* High-Contrast Scholarly Typography */
+  --text-1: #F2EEE2;      /* Primary display & headings (>16:1 contrast) */
+  --text-2: #B3AE9F;      /* Secondary descriptions (>8:1 contrast) */
+  --text-3: #9D9889;      /* Tertiary metadata & labels (>=7:1 contrast) */
+  --text-muted: #8A8678;  /* Subtle hints & disabled */
+
+  /* Single Chartreuse Accent */
+  --accent: #D6FF3F;           /* Chartreuse Primary */
+  --accent-ink: #0C0C0B;       /* Text rendered inside accent-filled buttons/pills (14.8:1) */
+  --accent-text: #D6FF3F;      /* Accent used as text on dark theme (14.8:1) */
+  --accent-muted: rgba(214, 255, 63, 0.12);
+  --accent-border: rgba(214, 255, 63, 0.35);
+
+  /* Functional Status */
+  --danger: #FF7878;           /* Muted danger text (>7:1 contrast) */
+  --danger-bg: rgba(255, 120, 120, 0.12);
+  --danger-border: rgba(255, 120, 120, 0.35);
+
+  /* Focus Ring */
+  --focus-ring: #D6FF3F;
+  --focus-ring-shadow: 0 0 0 2px #0C0C0B, 0 0 0 4px #D6FF3F;
+
+  /* Subtle Elevation for the Two Raised Surfaces */
+  --shadow-raised: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px var(--line-strong);
+  --shadow-popover: 0 16px 40px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--line-strong);
+  --shadow-toast: 0 8px 24px rgba(0, 0, 0, 0.60), 0 0 0 1px var(--line);
+}
+
+/* ==========================================================================
+   LIGHT "PAPER" PALETTE
+   ========================================================================== */
+:root[data-theme="light"] {
+  /* Surfaces: Warm paper-white canvas and panels */
+  --bg-0: #F4F0E4;        /* Paper Canvas Background */
+  --bg-1: #EDE8DA;        /* Panels & Dock */
+  --bg-2: #E5DFCF;        /* The TWO Raised Surfaces */
+  --bg-hover: rgba(20, 20, 15, 0.04);
+  --bg-active: rgba(20, 20, 15, 0.08);
+
+  /* Hairline 1px Rules */
+  --line: rgba(20, 20, 15, 0.10);
+  --line-strong: rgba(20, 20, 15, 0.22);
+  --line-focus: rgba(70, 88, 0, 0.50);
+
+  /* High-Contrast Scholarly Typography */
+  --text-1: #14140F;      /* Primary display & headings (>16:1 contrast) */
+  --text-2: #524E44;      /* Secondary descriptions (>7.4:1 contrast) */
+  --text-3: #565248;      /* Tertiary metadata & labels (>=7:1 contrast) */
+  --text-muted: #7A7569;  /* Subtle hints & disabled */
+
+  /* Single Chartreuse Accent */
+  --accent: #D6FF3F;           /* Chartreuse Primary fill */
+  --accent-ink: #0C0C0B;       /* Text inside accent-filled elements (14.8:1) */
+  --accent-text: #465800;      /* Calibrated olive for accent text on light paper (>7.1:1) */
+  --accent-muted: rgba(70, 88, 0, 0.10);
+  --accent-border: rgba(70, 88, 0, 0.35);
+
+  /* Functional Status */
+  --danger: #C02626;           /* Muted danger text (>7:1 contrast on paper) */
+  --danger-bg: rgba(192, 38, 38, 0.10);
+  --danger-border: rgba(192, 38, 38, 0.35);
+
+  /* Focus Ring */
+  --focus-ring: #465800;
+  --focus-ring-shadow: 0 0 0 2px #F4F0E4, 0 0 0 4px #465800;
+
+  /* Subtle Elevation for the Two Raised Surfaces */
+  --shadow-raised: 0 8px 24px rgba(20, 20, 15, 0.12), 0 0 0 1px var(--line-strong);
+  --shadow-popover: 0 16px 36px rgba(20, 20, 15, 0.16), 0 0 0 1px var(--line-strong);
+  --shadow-toast: 0 6px 20px rgba(20, 20, 15, 0.12), 0 0 0 1px var(--line);
+}
