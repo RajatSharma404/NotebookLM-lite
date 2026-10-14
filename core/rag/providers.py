@@ -17,6 +17,24 @@ class LLMProvider:
     - Built-in High-Accuracy Grounded Local Comprehension Engine (zero-config offline fallback)
     """
 
+    @staticmethod
+    def enforce_context_budget(prompt: str, system_instruction: str, max_tokens: int = 12000) -> tuple[str, str]:
+        """
+        Enforces token budget on input prompts to prevent exceeding model context windows.
+        """
+        try:
+            from core.ingest.chunker import count_tokens
+            total = count_tokens(prompt) + count_tokens(system_instruction)
+            if total <= max_tokens:
+                return prompt, system_instruction
+            lines = system_instruction.splitlines()
+            if len(lines) > 20:
+                trimmed = lines[:int(len(lines) * 0.75)]
+                system_instruction = "\n".join(trimmed)
+            return prompt, system_instruction
+        except Exception:
+            return prompt, system_instruction
+
     @classmethod
     async def stream_response(
         cls,
@@ -25,6 +43,7 @@ class LLMProvider:
         provider: str | None = None,
         model: str | None = None
     ) -> AsyncGenerator[str, None]:
+        prompt, system_instruction = cls.enforce_context_budget(prompt, system_instruction)
         provider = provider or settings.DEFAULT_LLM_PROVIDER
 
         # 1. Google Gemini Provider
@@ -189,7 +208,10 @@ class LLMProvider:
             "model": model,
             "system": system_instruction,
             "prompt": prompt,
-            "stream": True
+            "stream": True,
+            "options": {
+                "num_ctx": 8192
+            }
         }
         async with httpx.AsyncClient(timeout=60.0) as client:
             async with client.stream("POST", url, json=payload) as response:
