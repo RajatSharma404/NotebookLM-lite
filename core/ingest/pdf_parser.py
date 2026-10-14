@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
+
 
 class PDFParser:
     @staticmethod
@@ -8,7 +9,7 @@ class PDFParser:
         return (text or "").replace("\x00", "").strip()
 
     @staticmethod
-    def parse(file_path: Path) -> List[Dict[str, Any]]:
+    def parse(file_path: Path) -> list[dict[str, Any]]:
         """
         Extract text page-by-page from a PDF file using PyMuPDF (fitz) or PyPDF fallback.
         Returns a list of page dicts: [{"page_number": int, "text": str, "section": str}]
