@@ -1,14 +1,15 @@
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from core.database import get_db
 from core.models import Notebook, StudioArtifact
-from core.schemas import StudioArtifactResponse, StudioArtifactGenerateRequest
+from core.schemas import StudioArtifactGenerateRequest, StudioArtifactResponse
 from core.studio.generators import StudioGenerator
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/studio", tags=["Studio Artifacts"])
 
-@router.get("", response_model=List[StudioArtifactResponse])
+@router.get("", response_model=list[StudioArtifactResponse])
 def list_studio_artifacts(notebook_id: str, db: Session = Depends(get_db)):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
     if not nb:
@@ -43,4 +44,3 @@ def delete_studio_artifact(notebook_id: str, artifact_id: str, db: Session = Dep
         raise HTTPException(status_code=404, detail="Artifact not found")
     db.delete(artifact)
     db.commit()
-    return None
