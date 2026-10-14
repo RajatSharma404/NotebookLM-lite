@@ -282,6 +282,21 @@ Covers:
 - Grounding prompt formatting and citation resolution
 - REST endpoints and SSE streaming protocols
 - Studio artifact generation and TTS audio synthesis
+- **OpenAPI Breaking Change Guard**: Automated test asserting zero breaking changes against `tests/openapi_snapshot.json`
+- **Prompt Regression Suite**: Invariant validation and semantic-drift checks on versioned prompt templates (`core/prompts/`)
+- **Golden Evaluation Dataset**: Multi-source, single-source, follow-up, and unanswerable question benchmark (`tests/evals/`)
+- **Structured Telemetry & Stage Timings**: Structured JSON logging with `request_id` context tracing and microsecond stage timers
+
+```bash
+# Run backend test suite (unit, integration, eval)
+pytest -v -m "not slow"
+
+# Run load and scalability benchmarks
+pytest tests/test_baseline_load.py -v -s
+
+# Run code linter
+ruff check api core tests
+```
 
 ### Frontend Test Suite (Vitest)
 From the `frontend/` directory:
