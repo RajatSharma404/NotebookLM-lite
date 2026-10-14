@@ -1,7 +1,8 @@
 import io
 import zipfile
-import pytest
+
 from fastapi.testclient import TestClient
+
 
 def test_notebook_crud_lifecycle(client: TestClient):
     """Test creating, reading, updating, and deleting a notebook."""
