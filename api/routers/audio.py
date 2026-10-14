@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+
+from core.audio.podcast import PodcastEngine
 from core.config import settings
 from core.database import get_db
 from core.models import Notebook
 from core.schemas import StudioArtifactResponse
-from core.audio.podcast import PodcastEngine
 
 router = APIRouter(prefix="", tags=["Audio Overview"])
 
