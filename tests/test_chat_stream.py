@@ -1,8 +1,11 @@
 import json
+
 import pytest
-from core.models import Notebook, ChatThread, Message, CitationRef
+
 from core.ingest.pipeline import IngestionPipeline
+from core.models import ChatThread, CitationRef, Message
 from core.rag.generator import GroundedChatEngine
+
 
 @pytest.mark.asyncio
 async def test_grounded_streaming_chat(db_session, test_notebook):
