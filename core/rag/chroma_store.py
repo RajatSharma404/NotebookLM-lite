@@ -1,11 +1,13 @@
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 import chromadb
-from chromadb.config import Settings as ChromaSettings
+
 from core.config import settings
 
+
 class ChromaVectorStore:
-    def __init__(self, persist_dir: Optional[Path] = None):
+    def __init__(self, persist_dir: Path | None = None):
         self.persist_dir = persist_dir or settings.STORAGE_VECTOR_DIR
         self.client = chromadb.PersistentClient(path=str(self.persist_dir))
         self.collection = self.client.get_or_create_collection(
@@ -15,8 +17,8 @@ class ChromaVectorStore:
 
     def add_chunks(
         self,
-        chunks: List[Dict[str, Any]],
-        embeddings: List[List[float]]
+        chunks: list[dict[str, Any]],
+        embeddings: list[list[float]]
     ) -> None:
         """
         Adds chunk records with embeddings into ChromaDB.
@@ -63,11 +65,11 @@ class ChromaVectorStore:
 
     def query(
         self,
-        query_embedding: List[float],
+        query_embedding: list[float],
         notebook_id: str,
-        active_source_ids: List[str],
+        active_source_ids: list[str],
         top_k: int = 15
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Queries ChromaDB filtered by notebook and active sources.
         """
