@@ -1,15 +1,17 @@
 import os
 import shutil
+import uuid
 from pathlib import Path
-from typing import List, Dict, Any
+
 from sqlalchemy.orm import Session
 
 from core.config import settings
-from core.models import Source, Chunk
-from core.ingest.pdf_parser import PDFParser
-from core.ingest.md_parser import MarkdownParser
-from core.ingest.docx_parser import DocxParser
 from core.ingest.chunker import SemanticChunker
+from core.ingest.docx_parser import DocxParser
+from core.ingest.md_parser import MarkdownParser
+from core.ingest.pdf_parser import PDFParser
+from core.models import Chunk, Source
+
 
 class IngestionPipeline:
     @staticmethod
@@ -21,14 +23,22 @@ class IngestionPipeline:
     ) -> Source:
         """
         Ingests an uploaded file, extracts text, chunks it, and saves metadata into DB.
+        Stores files strictly under internally generated IDs to prevent path traversal.
         """
-        ext = filename.split(".")[-1].lower() if "." in filename else "txt"
-        
-        # Save file to permanent uploads directory
-        dest_filename = f"{notebook_id}_{os.urandom(4).hex()}_{filename}"
-        dest_path = settings.STORAGE_UPLOADS_DIR / dest_filename
+        raw_ext = filename.split(".")[-1].lower() if "." in filename else "txt"
+        safe_ext = raw_ext if raw_ext in ["pdf", "md", "markdown", "txt", "docx", "doc"] else "txt"
+
+        # Save file to permanent uploads directory using internal ID
+        internal_file_id = f"src_{uuid.uuid4().hex[:12]}.{safe_ext}"
+        dest_path = (settings.STORAGE_UPLOADS_DIR / internal_file_id).resolve()
+        uploads_root = settings.STORAGE_UPLOADS_DIR.resolve()
+        if not str(dest_path).startswith(str(uploads_root)):
+            raise ValueError("Path traversal attempt detected in storage destination.")
+
         shutil.copyfile(temp_file_path, dest_path)
         file_size = os.path.getsize(dest_path)
+
+        ext = safe_ext
 
         # Parse sections based on extension
         if ext == "pdf":
@@ -54,7 +64,7 @@ class IngestionPipeline:
 
         # Chunk sections and persist
         total_tokens = 0
-        all_chunks: List[Chunk] = []
+        all_chunks: list[Chunk] = []
 
         for sec in sections:
             raw_chunks = SemanticChunker.chunk_section(
@@ -85,7 +95,7 @@ class IngestionPipeline:
         try:
             from core.rag.chroma_store import chroma_store
             from core.rag.embeddings import embedding_provider
-            
+
             chunk_records = [
                 {
                     "id": c.id,
@@ -113,10 +123,14 @@ class IngestionPipeline:
     ) -> Source:
         """
         Ingests user-pasted text as a source.
+        Stores files strictly under internally generated IDs to prevent path traversal.
         """
         filename = f"{title}.txt" if not title.endswith(".txt") else title
-        dest_filename = f"{notebook_id}_{os.urandom(4).hex()}_{filename}"
-        dest_path = settings.STORAGE_UPLOADS_DIR / dest_filename
+        internal_file_id = f"src_{uuid.uuid4().hex[:12]}.txt"
+        dest_path = (settings.STORAGE_UPLOADS_DIR / internal_file_id).resolve()
+        uploads_root = settings.STORAGE_UPLOADS_DIR.resolve()
+        if not str(dest_path).startswith(str(uploads_root)):
+            raise ValueError("Path traversal attempt detected in storage destination.")
 
         with open(dest_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -141,7 +155,7 @@ class IngestionPipeline:
         )
 
         total_tokens = 0
-        all_chunks: List[Chunk] = []
+        all_chunks: list[Chunk] = []
         for chk_data in raw_chunks:
             chunk = Chunk(
                 source_id=source.id,
