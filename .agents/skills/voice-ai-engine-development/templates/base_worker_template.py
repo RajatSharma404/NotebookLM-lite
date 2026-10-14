@@ -6,8 +6,8 @@ in your voice AI pipeline.
 """
 
 import asyncio
-from typing import Any
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class BaseWorker:
     
     All workers run concurrently via asyncio.
     """
-    
+
     def __init__(self, input_queue: asyncio.Queue, output_queue: asyncio.Queue):
         """
         Initialize the worker
@@ -36,13 +36,13 @@ class BaseWorker:
         self.output_queue = output_queue
         self.active = False
         self._task = None
-    
+
     def start(self):
         """Start the worker's processing loop"""
         self.active = True
         self._task = asyncio.create_task(self._run_loop())
         logger.info(f"✅ [{self.__class__.__name__}] Started")
-    
+
     async def _run_loop(self):
         """
         Main processing loop - runs forever until terminated
@@ -56,15 +56,15 @@ class BaseWorker:
             try:
                 # Block until item arrives
                 item = await self.input_queue.get()
-                
+
                 # Process the item
                 await self.process(item)
-                
+
             except asyncio.CancelledError:
                 # Task was cancelled (normal during shutdown)
                 logger.info(f"🛑 [{self.__class__.__name__}] Task cancelled")
                 break
-                
+
             except Exception as e:
                 # Log error but don't crash the worker
                 logger.error(
@@ -72,7 +72,7 @@ class BaseWorker:
                     exc_info=True
                 )
                 # Continue processing next item
-    
+
     async def process(self, item: Any):
         """
         Process a single item
@@ -85,7 +85,7 @@ class BaseWorker:
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement process()"
         )
-    
+
     def terminate(self):
         """
         Stop the worker gracefully
@@ -93,12 +93,12 @@ class BaseWorker:
         This sets active=False and cancels the processing task.
         """
         self.active = False
-        
+
         if self._task and not self._task.done():
             self._task.cancel()
-        
+
         logger.info(f"🛑 [{self.__class__.__name__}] Terminated")
-    
+
     async def wait_for_completion(self):
         """Wait for the worker task to complete"""
         if self._task:
@@ -119,12 +119,12 @@ class ExampleWorker(BaseWorker):
     This worker receives strings, converts them to uppercase,
     and sends them to the output queue.
     """
-    
+
     def __init__(self, input_queue: asyncio.Queue, output_queue: asyncio.Queue):
         super().__init__(input_queue, output_queue)
         # Add any custom initialization here
         self.processed_count = 0
-    
+
     async def process(self, item: str):
         """
         Process a single item
@@ -134,16 +134,16 @@ class ExampleWorker(BaseWorker):
         """
         # Simulate some processing time
         await asyncio.sleep(0.1)
-        
+
         # Process the item
         result = item.upper()
-        
+
         # Send to output queue
         self.output_queue.put_nowait(result)
-        
+
         # Update counter
         self.processed_count += 1
-        
+
         logger.info(
             f"✅ [{self.__class__.__name__}] "
             f"Processed '{item}' -> '{result}' "
@@ -157,32 +157,32 @@ class ExampleWorker(BaseWorker):
 
 async def example_usage():
     """Example of how to use the worker"""
-    
+
     # Create queues
     input_queue = asyncio.Queue()
     output_queue = asyncio.Queue()
-    
+
     # Create worker
     worker = ExampleWorker(input_queue, output_queue)
-    
+
     # Start worker
     worker.start()
-    
+
     # Send items to process
     items = ["hello", "world", "voice", "ai"]
     for item in items:
         input_queue.put_nowait(item)
-    
+
     # Wait for processing
     await asyncio.sleep(0.5)
-    
+
     # Get results
     results = []
     while not output_queue.empty():
         results.append(await output_queue.get())
-    
+
     print(f"\n✅ Results: {results}")
-    
+
     # Terminate worker
     worker.terminate()
     await worker.wait_for_completion()
