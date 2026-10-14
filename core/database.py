@@ -1,9 +1,9 @@
-from typing import Generator
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from core.config import settings
+from collections.abc import Generator
 
-from sqlalchemy import event
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from core.config import settings
 
 # SQLite requires check_same_thread=False for multi-threaded FastAPI workers
 engine = create_engine(
