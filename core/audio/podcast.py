@@ -105,17 +105,29 @@ class PodcastEngine:
         segment_paths: list[Path] = []
 
         try:
-            for idx, line in enumerate(dialogue):
+            import asyncio
+            sem = asyncio.Semaphore(3)
+
+            async def synth_line(idx: int, line: dict[str, str]) -> tuple[int, Path | None]:
                 voice = line.get("voice_id", settings.TTS_VOICE_SPEAKER_A)
                 text = line.get("text", "")
                 if not text.strip():
-                    continue
-
+                    return idx, None
                 seg_path = temp_dir / f"seg_{idx:03d}.mp3"
-                communicate = edge_tts.Communicate(text, voice)
-                await communicate.save(str(seg_path))
-                if seg_path.exists() and os.path.getsize(seg_path) > 0:
-                    segment_paths.append(seg_path)
+                try:
+                    async with sem:
+                        communicate = edge_tts.Communicate(text, voice)
+                        await communicate.save(str(seg_path))
+                    if seg_path.exists() and os.path.getsize(seg_path) > 0:
+                        return idx, seg_path
+                except Exception:
+                    pass
+                return idx, None
+
+            tasks = [synth_line(i, line) for i, line in enumerate(dialogue)]
+            results = await asyncio.gather(*tasks)
+            results.sort(key=lambda x: x[0])
+            segment_paths = [p for _, p in results if p is not None]
 
             if not segment_paths:
                 return None
