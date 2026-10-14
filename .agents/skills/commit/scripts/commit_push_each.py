@@ -1,6 +1,7 @@
+import os
 import subprocess
 import sys
-import os
+
 
 def run_cmd(cmd: list[str]) -> tuple[int, str, str]:
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=os.getcwd())
@@ -16,7 +17,7 @@ def get_conventional_message(file_path: str, status_code: str) -> str:
     norm_path = file_path.replace("\\", "/")
     basename = os.path.basename(norm_path)
     dirname = os.path.dirname(norm_path)
-    
+
     action = "update"
     if status_code in ["??", "A"]:
         action = "create"
@@ -67,7 +68,7 @@ def main():
     for idx, line in enumerate(lines, 1):
         if not line.strip():
             continue
-        
+
         # Git porcelain status: XY PATH or XY "PATH"
         match = re.match(r'^\s*([MADRCU?!]{1,2})\s+(.+)$', line)
         if match:
@@ -76,11 +77,11 @@ def main():
         else:
             status_part = line[:2].strip()
             path_part = line[2:].strip()
-        
+
         # Strip quotes if present
         if path_part.startswith('"') and path_part.endswith('"'):
             path_part = path_part[1:-1]
-        
+
         commit_msg = get_conventional_message(path_part, status_part)
         print(f"[{idx}/{len(lines)}] Processing: {path_part}")
         print(f"    Message: {commit_msg}")
