@@ -1,7 +1,7 @@
-import pytest
-from core.models import Notebook, Source
 from core.ingest.pipeline import IngestionPipeline
+from core.models import Notebook
 from core.rag.retriever import HybridRetriever
+
 
 def test_hybrid_retrieval_semantic_matching(db_session, test_notebook):
     """Test dense and sparse hybrid retrieval matches semantic questions."""
@@ -18,7 +18,7 @@ The scaled dot-product factor 1/sqrt(d_k) prevents gradients from vanishing in h
     )
 
     query = "How does multi-head attention project queries and keys?"
-    context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
+    _context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
 
     assert len(citations) > 0, "Should retrieve at least 1 citation"
     assert "Attention_Paper" in citations[0]["source_title"]
@@ -39,7 +39,7 @@ PPO seeks to improve training stability by preventing updates from shifting poli
     )
 
     query = "What does PPO do in reinforcement learning?"
-    context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
+    _context, citations = HybridRetriever.retrieve(query, test_notebook.id, db_session)
 
     assert len(citations) > 0
     assert any("RL_Survey" in c["source_title"] for c in citations)
