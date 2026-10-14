@@ -1,21 +1,27 @@
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+
 from core.database import get_db
-from core.models import Notebook, ChatThread, Message
-from core.schemas import ChatThreadResponse, MessageResponse, CitationItem, ChatQueryRequest
+from core.models import ChatThread, Notebook
 from core.rag.generator import GroundedChatEngine
+from core.schemas import (
+    ChatQueryRequest,
+    ChatThreadResponse,
+    CitationItem,
+    MessageResponse,
+)
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/chat", tags=["Chat"])
 
-@router.get("/threads", response_model=List[ChatThreadResponse])
+@router.get("/threads", response_model=list[ChatThreadResponse])
 def get_chat_threads(notebook_id: str, db: Session = Depends(get_db)):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
     if not nb:
         raise HTTPException(status_code=404, detail="Notebook not found")
     threads = db.query(ChatThread).filter(ChatThread.notebook_id == notebook_id).order_by(ChatThread.created_at.desc()).all()
-    
+
     results = []
     for thread in threads:
         msg_items = []
