@@ -1,17 +1,23 @@
-import tempfile
 import os
+import tempfile
 from pathlib import Path
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+
 from core.database import get_db
-from core.models import Notebook, Source, Chunk
-from core.schemas import SourceResponse, SourceToggleRequest, SourcePasteCreate, ChunkResponse
 from core.ingest.pipeline import IngestionPipeline
+from core.models import Chunk, Notebook, Source
+from core.schemas import (
+    ChunkResponse,
+    SourcePasteCreate,
+    SourceResponse,
+    SourceToggleRequest,
+)
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/sources", tags=["Sources"])
 
-@router.get("", response_model=List[SourceResponse])
+@router.get("", response_model=list[SourceResponse])
 def list_sources(notebook_id: str, db: Session = Depends(get_db)):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
     if not nb:
@@ -95,7 +101,7 @@ def toggle_source(notebook_id: str, source_id: str, payload: SourceToggleRequest
     db.refresh(source)
     return source
 
-@router.get("/{source_id}/chunks", response_model=List[ChunkResponse])
+@router.get("/{source_id}/chunks", response_model=list[ChunkResponse])
 def get_source_chunks(notebook_id: str, source_id: str, db: Session = Depends(get_db)):
     source = db.query(Source).filter(Source.id == source_id, Source.notebook_id == notebook_id).first()
     if not source:
@@ -124,4 +130,3 @@ def delete_source(notebook_id: str, source_id: str, db: Session = Depends(get_db
 
     db.delete(source)
     db.commit()
-    return None
