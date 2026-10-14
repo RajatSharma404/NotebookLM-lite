@@ -1,6 +1,6 @@
 import hashlib
 import re
-from typing import List, Dict, Any
+from typing import Any
 
 TARGET_CHARS = 1800  # ~450-512 tokens
 OVERLAP_CHARS = 240  # ~60 tokens
@@ -11,11 +11,11 @@ class SemanticChunker:
         text: str,
         page_number: int = 1,
         section_title: str = "General"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Splits text into sliding window semantic chunks respecting paragraph and sentence boundaries.
         """
-        chunks: List[Dict[str, Any]] = []
+        chunks: list[dict[str, Any]] = []
         if not text.strip():
             return chunks
 
@@ -35,7 +35,7 @@ class SemanticChunker:
 
         # Split into semantic sentences or paragraphs
         sentences = re.split(r'(?<=[.!?\n])\s+', text)
-        current_chunk_sentences: List[str] = []
+        current_chunk_sentences: list[str] = []
         current_char_count = 0
         global_char_idx = 0
 
@@ -57,7 +57,7 @@ class SemanticChunker:
                     })
 
                 # Retain overlap sentences for sliding window
-                overlap_accum: List[str] = []
+                overlap_accum: list[str] = []
                 overlap_count = 0
                 for s in reversed(current_chunk_sentences):
                     if overlap_count + len(s) <= OVERLAP_CHARS:
