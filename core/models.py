@@ -1,17 +1,18 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import (
-    Column, String, Text, Integer, Boolean, DateTime, ForeignKey
-)
+from datetime import UTC, datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from core.database import Base
+
 
 def generate_id(prefix: str = "") -> str:
     short_uuid = uuid.uuid4().hex[:12]
     return f"{prefix}_{short_uuid}" if prefix else short_uuid
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 class Notebook(Base):
     __tablename__ = "notebooks"
