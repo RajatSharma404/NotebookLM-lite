@@ -329,4 +329,21 @@ This document maintains a living, structured record of every user prompt, archit
   - Configured `pyproject.toml` with `ruff` and `pytest`; confirmed 34/34 tests passing and 0 ruff lint errors.
   - Authored comprehensive [baseline_report.md](file:///C:/Users/rajat/.gemini/antigravity-ide/brain/dce6968c-100f-4447-8a29-4fb6962bd877/baseline_report.md) artifact and updated [README.md](file:///d:/NotebookLM%20lite/README.md).
 
+---
+
+### Prompt 23: Granular Git Commit & Push (`/commit`)
+- **User Intent**: Stage, commit, and push all Phase 1 backend improvements, security remediations, test suites, telemetry, benchmarks, and configuration files one by one to GitHub with Conventional Commit messages.
+- **Actions Taken**:
+  - Executed [.agents/skills/commit/scripts/commit_push_each.py](file:///d:/NotebookLM%20lite/.agents/skills/commit/scripts/commit_push_each.py).
+  - Staged, created Conventional Commits, and immediately pushed 56 individual files to `origin/main`:
+    - Stop-the-Line security fixes (`settings.py`, `providers.py`, `pipeline.py`).
+    - Core telemetry and request tracing (`core/telemetry.py`, `api/main.py`).
+    - Versioned prompt engine (`core/prompts/*`).
+    - Characterization and contract test suite (`test_api_contract.py`, `test_openapi_snapshot.py`, `fake_provider.py`).
+    - Golden evaluation matrix & evaluator (`golden_dataset.py`, `evaluator.py`, `test_golden_eval.py`).
+    - Baseline load & latency benchmarks (`test_baseline_load.py`).
+    - Package and tool configuration (`pyproject.toml`, `requirements.txt`, `alembic/*`).
+  - Verified working tree is clean (`nothing to commit, working tree clean`) and branch is fully up to date with `origin/main`.
+
+
 
