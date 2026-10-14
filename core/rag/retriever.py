@@ -1,10 +1,12 @@
+from typing import Any
+
 import numpy as np
-from typing import List, Dict, Any, Tuple
 from sqlalchemy.orm import Session
 
 from core.models import Chunk, Source
-from core.rag.embeddings import embedding_provider
 from core.rag.bm25 import BM25Retriever
+from core.rag.embeddings import embedding_provider
+
 
 class HybridRetriever:
     """
@@ -20,7 +22,7 @@ class HybridRetriever:
         db: Session,
         top_k: int = 6,
         rrf_constant: int = 60
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    ) -> tuple[str, list[dict[str, Any]]]:
         """
         Retrieves top grounded context chunks for a query strictly scoped to active sources.
         Returns:
@@ -33,7 +35,7 @@ class HybridRetriever:
             .join(Source, Chunk.source_id == Source.id)
             .filter(
                 Chunk.notebook_id == notebook_id,
-                Source.is_active == True
+                Source.is_active
             )
             .all()
         )
@@ -60,7 +62,7 @@ class HybridRetriever:
         query_vec = embedding_provider.embed_text(query)
         active_source_ids = list({c["source_id"] for c in chunk_dicts})
 
-        dense_ranked_ids: List[str] = []
+        dense_ranked_ids: list[str] = []
         try:
             from core.rag.chroma_store import chroma_store
             chroma_results = chroma_store.query(
@@ -90,7 +92,7 @@ class HybridRetriever:
         bm25_ranked_ids = [cid for cid, _ in bm25_ranked]
 
         # 4. Reciprocal Rank Fusion (RRF)
-        rrf_scores: Dict[str, float] = {}
+        rrf_scores: dict[str, float] = {}
 
         for rank, cid in enumerate(dense_ranked_ids):
             rrf_scores[cid] = rrf_scores.get(cid, 0.0) + 1.0 / (rrf_constant + rank + 1)
