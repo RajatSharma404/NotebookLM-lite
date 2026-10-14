@@ -1,19 +1,20 @@
-import os
 import io
+import os
 import re
 import zipfile
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 from core.database import get_db
-from core.models import Notebook, Source, Note, utcnow
-from core.schemas import NotebookCreate, NotebookUpdate, NotebookResponse
+from core.models import Note, Notebook, Source, utcnow
+from core.schemas import NotebookCreate, NotebookResponse, NotebookUpdate
 
 router = APIRouter(prefix="/notebooks", tags=["Notebooks"])
 
-@router.get("", response_model=List[NotebookResponse])
+@router.get("", response_model=list[NotebookResponse])
 def list_notebooks(db: Session = Depends(get_db)):
     notebooks = db.query(Notebook).order_by(Notebook.updated_at.desc()).all()
     results = []
@@ -106,14 +107,9 @@ def delete_notebook(notebook_id: str, db: Session = Depends(get_db)):
 
     db.delete(nb)
     db.commit()
-    return None
 
 @router.get("/{notebook_id}/export")
 def export_notebook(notebook_id: str, db: Session = Depends(get_db)):
-    import io
-    import re
-    import zipfile
-    from fastapi.responses import Response
 
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
     if not nb:
@@ -130,14 +126,14 @@ def export_notebook(notebook_id: str, db: Session = Depends(get_db)):
             f"# {nb.title}",
             f"**Exported:** {utcnow().isoformat()}",
             f"**Notebook ID:** {nb.id}",
-            f"",
-            f"## Contents",
+            "",
+            "## Contents",
             f"- Sources: {len(nb.sources)}",
             f"- Notes: {len(nb.notes)}",
             f"- Chat Threads: {len(nb.chat_threads)}",
             f"- Studio Artifacts: {len(nb.studio_artifacts)}",
-            f"",
-            f"Exported from NotebookLM-lite.",
+            "",
+            "Exported from NotebookLM-lite.",
         ]
         zf.writestr("README.md", "\n".join(readme))
 
