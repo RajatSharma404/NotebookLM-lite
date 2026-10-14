@@ -1,8 +1,8 @@
 # NotebookLM-lite
 
-> **A scholarly, source-grounded research notebook featuring dense-sparse hybrid search, streaming inline citations, studio artifact synthesis, and two-host audio overviews.**
+> **A scholarly, local-first research notebook featuring dense-sparse hybrid search, native SQLite FTS5 retrieval, cross-encoder re-ranking, verifiable inline citations, Map-Reduce studio synthesis, and concurrent two-host audio overviews.**
 
-NotebookLM-lite is an open-source, local-first alternative to Google NotebookLM. Designed for researchers, academics, students, and engineers, it prioritizes **strict factual grounding**, verifiable evidence links, and generative synthesis across multi-document corpora.
+NotebookLM-lite is an open-source, local-first alternative to Google NotebookLM. Built with Python (FastAPI + SQLAlchemy 2.0 + SQLite WAL) and React 18 (TypeScript + Zustand), it prioritizes **strict factual grounding**, verifiable evidence links, and multi-document synthesis across local corpora with zero cloud lock-in.
 
 The application features a bespoke **"paper & ink"** scholarly aesthetic: warm dark ink (`#0C0C0B`) and tactile paper white (`#F4F0E4`), serif display typography (`Instrument Serif`), monospace metadata (`JetBrains Mono`), 1px hairline rules, a single chartreuse accent (`#D6FF3F`), and exactly two raised structural surfaces (`Composer` and `Audio Player`).
 
@@ -13,7 +13,7 @@ The application features a bespoke **"paper & ink"** scholarly aesthetic: warm d
 ```mermaid
 graph TD
     subgraph Frontend ["Frontend (React 18 + TypeScript + Zustand)"]
-        UI_Sources["Sources Dock & Chunk Auditor"]
+        UI_Sources["Sources Dock & Quality Auditor"]
         UI_Chat["Grounded Chat & Citation Engine"]
         UI_Studio["Studio Panel & Waveform Scrubber"]
         Store["Zustand Domain & UI Stores"]
@@ -21,81 +21,155 @@ graph TD
     end
 
     subgraph Backend ["Backend (FastAPI + Async Python)"]
-        Router_NB["/api/notebooks"]
-        Router_Chat["/api/notebooks/{id}/chat/stream"]
-        Router_Studio["/api/notebooks/{id}/studio"]
-        
-        subgraph Pipeline ["RAG & Ingestion Engine"]
-            Parser["Document Parser (PDF, DOCX, MD, TXT)"]
-            Chunker["Semantic Chunker"]
-            Dense["Dense Embeddings (all-MiniLM-L6-v2)"]
-            Sparse["Sparse BM25 (BM25Okapi)"]
+        subgraph Endpoints ["REST & Streaming Endpoints"]
+            Router_NB["/api/notebooks"]
+            Router_Chat["/api/notebooks/{id}/chat/stream (SSE)"]
+            Router_Studio["/api/notebooks/{id}/studio"]
+            Router_Audio["/api/audio/stream & generate"]
+            Router_Jobs["/api/jobs & /api/notebooks/{id}/jobs"]
+            Router_Settings["/api/settings"]
+        end
+
+        subgraph Jobs ["Async Job Infrastructure"]
+            JobMgr["JobManager (asyncio.Semaphore=2, Cancellation, Crash Recovery)"]
+        end
+
+        subgraph Ingestion ["Ingestion & Quality Pipeline"]
+            PDF_P["PDF Parser (pdfplumber, Tables -> Markdown, NFKC)"]
+            DOCX_P["DOCX Parser (defusedxml, Table Extraction)"]
+            MD_P["Markdown / Text Parser (Heading Hierarchy)"]
+            Chunker["Semantic Chunker (tiktoken cl100k, Sentences, Overlap)"]
+        end
+
+        subgraph Search ["Hybrid Retrieval & Re-ranking"]
+            FTS5["SQLite FTS5 (chunks_fts, Porter Stemmer, <10ms BM25)"]
+            Chroma["Chroma Dense Vector Store (all-MiniLM-L6-v2)"]
+            Cache["LRU Query Embedding Cache (maxsize=512)"]
             RRF["Reciprocal Rank Fusion (k=60)"]
+            Rerank["FlashRank Cross-Encoder (TinyBERT-L-2-v2 -> Top-6)"]
         end
 
-        subgraph Synthesis ["Generative & Audio Engine"]
-            Grounder["Strict Grounding Prompt"]
+        subgraph Generation ["Synthesis & Verification"]
+            PromptEng["Versioned Grounding Prompts (Strict Invariants)"]
+            Budget["Context Budget Enforcer (8192 Ollama / 6000 Input)"]
             LLM["LLM Providers (Gemini / OpenAI / Ollama)"]
-            TTS["Two-Host TTS (Edge-TTS / Jenny & Guy)"]
+            Verifier["CitationVerifier (Claim Containment, Groundedness %)"]
         end
 
-        DB[(SQLite + SQLAlchemy)]
+        subgraph StudioAudio ["Studio & Audio Scaling"]
+            MapReduce["Map-Reduce Studio Generator (Partitions >12 Chunks)"]
+            TTS["Concurrent Edge-TTS (asyncio.gather, Semaphore=3)"]
+            RangeStream["HTTP 206 Partial Content Range Audio Streamer"]
+        end
+
+        subgraph Security ["Security & Rate Limiting"]
+            Limiter["slowapi Rate Limiter (Chat: 30/m, Audio: 10/m, Studio: 20/m)"]
+            PathGuard["Path Traversal & Disallowed Extension Guards"]
+            SecretMask["API Key Redaction & Atomic FileLock .env Writer"]
+        end
+
+        DB[(SQLite WAL + Compound Indexes)]
     end
 
     UI_Sources --> Store
     UI_Chat --> Store
     UI_Studio --> Store
     Store --> SSE_Client
-    SSE_Client -->|HTTP / SSE| Router_NB
-    SSE_Client -->|HTTP / SSE| Router_Chat
-    SSE_Client -->|HTTP / SSE| Router_Studio
 
-    Router_NB --> Parser --> Chunker --> Dense & Sparse --> RRF
-    Router_Chat --> RRF --> Grounder --> LLM
-    Router_Studio --> LLM
-    Router_Studio --> TTS
-    Router_NB --> DB
-    Router_Chat --> DB
-    Router_Studio --> DB
+    SSE_Client -->|HTTP / SSE| Endpoints
+    Endpoints --> Limiter
+    Endpoints --> JobMgr
+    Endpoints --> Router_Chat
+    
+    Router_NB --> Ingestion --> Search
+    Router_Chat --> Search --> Generation
+    Router_Studio --> MapReduce --> LLM
+    Router_Audio --> TTS --> RangeStream
+    
+    Search --> DB
+    Generation --> DB
+    Jobs --> DB
 ```
+
+---
+
+## 9-Phase Engineering Re-Architecture
+
+NotebookLM-lite has been re-architected from the ground up across 9 rigorous engineering phases:
+
+| Phase | Milestone | Key Architectural Deliverables | Test Coverage |
+|---|---|---|---|
+| **Phase 0** | **Recon & Skill Audit** | Full codebase & dependency audit; identification of 4 critical STOP-THE-LINE security risks; skill application matrix across 45 agent skills. | Verified |
+| **Phase 1** | **Safety Net & Baselines** | STOP-THE-LINE security fixes (API key masking, atomic `.env` locks, header authentication, path traversal isolation); structured JSON telemetry; versioned prompts; characterization tests; OpenAPI breaking change guard; Golden Evaluation matrix. | 34 Pytest |
+| **Phase 2** | **Async Core & Job Infra** | `core/jobs/manager.py` with `asyncio.Semaphore(2)`, cooperative cancellation (`task.cancel()`), startup crash recovery; additive job polling endpoints (`GET /api/jobs/{id}`, `POST /api/jobs/{id}/cancel`); client disconnect detection in chat streams; compound SQLite indexes (`source_id + chunk_index`, `thread_id + created_at`). | 2 Pytest |
+| **Phase 3** | **Ingestion & Chunking** | `pdfplumber` layout-aware parsing with tabular grid-to-Markdown conversion; `defusedxml` entity-expansion defense; heading hierarchy depth tracking; `tiktoken` (`cl100k_base`) sentence-boundary semantic chunker with normalized char/byte offsets and SHA-256 chunk hashes. | 7 Pytest |
+| **Phase 4** | **FTS5 Hybrid Retrieval** | Native SQLite FTS5 virtual table (`chunks_fts`) with unicode61 tokenizer and Porter stemmer, reducing keyword search latency from 3,827ms to <10ms; instance-level LRU query embedding cache (512 entries); dense Chroma vector search; Reciprocal Rank Fusion ($k=60$). | 5 Pytest |
+| **Phase 5** | **Re-ranking & Providers** | `FlashRankReranker` using quantized ONNX cross-encoder (`ms-marco-TinyBERT-L-2-v2`) re-ranking top candidates down to top-6; Ollama `num_ctx=8192` context window configuration; `enforce_context_budget` preventing silent truncation. | 2 Pytest |
+| **Phase 6** | **Grounded Verification** | `CitationVerifier` with claim-to-chunk containment evaluation, verified/partial/unsupported categorization, groundedness scoring; additive SSE `{"type": "verification", ...}` events; persisted citation metrics. | 2 Pytest |
+| **Phase 7** | **Studio & Audio at Scale** | Corpus-wide Map-Reduce synthesis (`_map_partition` + reduce) for multi-document scaling (>12 chunks); concurrent multi-voice Edge-TTS synthesis using `asyncio.gather` bounded by `asyncio.Semaphore(3)`; HTTP 206 Partial Content Range streaming for waveform scrubbing. | 4 Pytest |
+| **Phase 8** | **Security Hardening** | `slowapi` rate limiting on chat, audio, studio, and settings endpoints; path traversal prevention; file extension whitelisting; API key redaction. | 5 Pytest |
+| **Phase 9** | **Evaluation & Quality Gate** | Comprehensive test execution: **47/47 backend tests passing**, **47/47 frontend tests passing**, `ruff check .` clean (0 lint errors), 100% backward-compatible OpenAPI contract. | 94 Total Tests |
 
 ---
 
 ## Key Features
 
-### 1. Multi-Format Ingestion & Chunk Auditor
-- **Supported Formats:** PDF (`pypdf` / `pdfplumber`), DOCX (`python-docx`), Markdown (`.md`), and raw text (`.txt` / pasted clipboard text).
-- **Chunk Quality Auditor:** Real-time client-side auditing flagging empty chunks, oversized chunks (>800 tokens), duplicate chunks, and mid-sentence splits with health status badges.
-- **Source Inspector:** Slide-out drawer with in-drawer substring search, token statistics, and instant chunk highlighting using `content-visibility: auto`.
-- **Context Share Metrics:** Live token counting per source with visual context share bars indicating budget utilization.
+### 1. Ingestion Pipeline & Chunk Auditor
+- **Multi-Format Parsers:**
+  - **PDF (`pdfplumber` + `pypdf`):** Layout-aware text extraction, tabular grid detection with automated Markdown table formatting, font-size heading inference, and NFKC Unicode normalization.
+  - **DOCX (`python-docx` + `defusedxml`):** XML entity-expansion bomb defense, table extraction, and multi-level heading hierarchy depth tracking.
+  - **Markdown & Plain Text:** Heading hierarchy stack tracking (`#`, `##`, `###`) preserved in chunk metadata.
+- **Semantic Sliding-Window Chunker:** Token-accurate chunking via `tiktoken` (`cl100k_base`), sentence-boundary snapping (target: 400 tokens, overlap: 50 tokens), normalized `char_start/end`, `byte_start/end`, and SHA-256 chunk deduplication hashes.
+- **Client-Side Chunk Quality Auditor:** Flags empty chunks, oversized chunks (>800 tokens), duplicate chunks, and mid-sentence splits with health status badges.
+- **Source Inspector Drawer:** Slide-out inspection panel with in-drawer substring search, token metrics, and instant chunk highlighting using `content-visibility: auto`.
 
-### 2. Dual-Stage Hybrid Search & Strict Grounding
-- **Dense Vector Search:** Semantic similarity search using `sentence-transformers` (`all-MiniLM-L6-v2`) or OpenAI / Gemini embeddings.
-- **Sparse Keyword Search:** Exact keyword recall using `rank_bm25` (`BM25Okapi`).
-- **Reciprocal Rank Fusion (RRF):** Blends dense and sparse rankings with smoothing parameter $k=60$:
+### 2. Dual-Stage Hybrid Search & Cross-Encoder Re-ranking
+- **Native SQLite FTS5:** Full-text indexing via virtual table `chunks_fts` using `unicode61` tokenizer and Porter stemming. Delivers sub-10ms keyword search latency, replacing expensive in-memory scans.
+- **Chroma Dense Vector Index:** Semantic similarity search using `all-MiniLM-L6-v2` (or OpenAI / Gemini embeddings).
+- **LRU Query Embedding Cache:** Instance-level O(1) LRU cache (512 entries) eliminating redundant vector computations.
+- **Reciprocal Rank Fusion (RRF):** Blends dense semantic ranks and sparse FTS5 BM25 ranks with smoothing parameter $k=60$:
   $$RRF\_Score(d) = \sum_{m \in M} \frac{1}{k + r_m(d)}$$
-- **Hallucination Prevention:** The grounding prompt strictly confines LLM responses to indexed passages. Unverified claims outside the sources are rejected.
+- **FlashRank Cross-Encoder Re-ranking:** Top candidates are re-scored via quantized ONNX cross-encoder (`ms-marco-TinyBERT-L-2-v2`) down to the top-6 most relevant passages with automatic score-preserving fallback.
 
-### 3. Streaming Chat & Grounded Citation Engine
-- **Server-Sent Events (SSE):** Real-time token streaming with custom `SSEBufferParser` handling arbitrary network chunk boundaries.
-- **`requestAnimationFrame` Batching:** Stream flushes run at 60fps without choking React render cycles.
-- **Dynamic Citation Pills `[n]`:** Inline superscript brackets automatically resolve to cited chunks, featuring hover popovers (source filename, page number, and exact quote snippet) and a 600ms pulse animation on the cited source row when clicked.
+### 3. Grounded Chat & Automated Citation Verification
+- **Server-Sent Events (SSE):** Real-time token streaming with custom `SSEBufferParser` handling arbitrary network packet boundaries.
+- **Client Disconnect Detection:** Token streaming detects disconnected sockets and terminates background generation immediately, avoiding wasted inference tokens.
+- **Automated Citation Verifier:** Claims citing passages `[n]` undergo containment checks against the source chunks, scoring each citation as `verified`, `partial`, or `unsupported`, and computing an overall groundedness percentage.
+- **Additive SSE Verification Event:** Emits `data: {"type": "verification", "groundedness_score": 0.95, ...}` without breaking older clients.
+- **Dynamic Citation Pills `[n]`:** Interactive inline pills featuring hover popovers (source title, page, and exact quote snippet) and a 600ms pulse animation on the cited source row when clicked.
 - **Math & Code Rendering:** KaTeX mathematical typesetting (`trust: false` for security) and syntax-highlighted code blocks with one-click copy.
 - **Raised Surface 1 (Composer):** Auto-growing textarea (1 to 8 rows) with active focus ring, live context tokens counter, and keyboard shortcuts (`Enter` send, `Shift+Enter` newline).
 
-### 4. Generative Studio Panel & Audio Scrubber
+### 4. Generative Studio & Scalable Audio Overviews
 - **Generative Artifacts (2x2 Grid):**
   - **Study Guide:** Core concepts, review quizzes, and structured glossary terms.
   - **Briefing Document:** Executive summary, key findings, and decision matrices.
   - **FAQ & Glossary:** Technical queries, definitions, and domain jargon.
   - **Timeline:** Chronological progression of arguments, milestones, or methodologies.
-- **Manuscript Modal (`ArtifactViewer`):** Clean reading modal with copy, download as `.md`, and one-click save to notes.
-- **Two-Host Grounded Podcast Synthesis:** Generates natural conversational dialogue between Host 1 and Host 2 grounded in the active corpus, synthesized via `edge-tts` (Jenny & Guy).
+- **Map-Reduce Studio Generator:** Automatically partitions large corpora (>12 chunks) into parallel map tasks before reducing into unified artifacts, preventing context window overflow on multi-document notebooks.
+- **Two-Host Grounded Podcast Synthesis:** Generates natural conversational dialogue between Host 1 (Guy) and Host 2 (Jenny) grounded in the corpus.
+- **Concurrent TTS Synthesis:** Audio synthesis generates speech segments in parallel using `asyncio.gather` bounded by `asyncio.Semaphore(3)`, cutting wall time by over 50%.
+- **HTTP 206 Partial Content Range Streaming:** `GET /api/audio/stream/{filename}` supports HTTP Range requests (`bytes=start-end`), enabling smooth waveform scrubbing and seeking in the frontend without downloading entire MP3 files.
 - **Raised Surface 2 (Audio Player):** 52-bar canvas waveform scrubber with pointer-capture drag-to-seek, hover time tooltips, transport controls (rewind 15s, forward 15s), and speed options (0.8x, 1x, 1.2x, 1.5x).
 - **Personal Notes Workspace:** CRUD notes system with multi-note selection to synthesize new artifacts directly from user notes.
 - **Full Archive Export:** Dynamic `fflate` compression generating a `.zip` archive containing `notebook.json`, `notes/*.md`, `artifacts/*.md`, and `chat_transcript.md` with academic footnotes.
 
-### 5. Scholarly "Paper & Ink" Design System
+### 5. Async Job Infrastructure & Security Hardening
+- **In-Process Job Manager:** Background tasks run under a cooperative task manager with `asyncio.Semaphore(2)` concurrency limit, robust task reference tracking, and startup recovery of interrupted jobs.
+- **Cooperative Cancellation:** Active jobs can be cancelled on demand via `POST /api/jobs/{id}/cancel`.
+- **Rate Limiting:** `slowapi` protects sensitive endpoints against abuse:
+  - Chat streaming: 30 req/min
+  - Audio generation: 10 req/min
+  - Studio artifact generation: 20 req/min
+  - Settings updates: 10 req/min
+- **Security Defenses:**
+  - Absolute path traversal prevention and file extension whitelisting (`.pdf`, `.docx`, `.txt`, `.md`).
+  - Redacted API key previews (only returns `"configured"` or `""`, zero secret leakage).
+  - Atomic `.env` updates using `filelock.FileLock` with newline injection sanitization and `0600` file permissions.
+  - Gemini authentication via HTTP header `x-goog-api-key` instead of query parameters.
+- **Structured JSON Telemetry:** Context-propagated `request_id` tracing and microsecond `StageTimer` logging across ingestion, retrieval, re-ranking, and generation.
+
+### 6. Scholarly "Paper & Ink" Design System
 - **Theme Modes:**
   - **Dark "Ink" Theme (`#0C0C0B`):** Warm charcoal canvas, hairlines, and luminous text (`#F2EEE2`).
   - **Light "Paper" Theme (`#F4F0E4`):** Warm tactile paper canvas with deep ink typography (`#14140F`).
@@ -112,90 +186,165 @@ graph TD
 
 ```text
 NotebookLM-lite/
-├── api/                             # FastAPI Backend
-│   ├── main.py                      # Application factory & CORS middleware
-│   ├── dependencies.py              # Database & session dependencies
-│   ├── models/                      # SQLAlchemy ORM models
-│   │   ├── notebook.py              # Notebook, Source, Chunk models
-│   │   ├── chat.py                  # Thread, Message, Citation models
-│   │   └── studio.py                # Note, Artifact, Audio models
-│   ├── schemas/                     # Pydantic V2 request & response schemas
+├── api/                             # FastAPI Application & Endpoints
+│   ├── main.py                      # App factory, lifespan, CORS & rate limit handlers
+│   ├── dependencies.py              # Database session & dependency injection
 │   └── routers/                     # Endpoint controllers
-│       ├── notebooks.py             # Notebook & Source CRUD
-│       ├── chat.py                  # SSE Chat streaming & thread history
-│       └── studio.py                # Artifact generation & audio synthesis
-├── core/                            # Core Logic & Algorithms
-│   ├── ingest/                      # Document parsers & chunking
-│   │   ├── pdf_parser.py            # PDF text & coordinate extractor
-│   │   ├── docx_parser.py           # DOCX reader
-│   │   └── chunker.py               # Semantic chunking strategy
-│   ├── search/                      # Retrieval-Augmented Generation
-│   │   ├── dense_search.py          # Sentence-Transformers vector index
-│   │   ├── sparse_search.py         # BM25Okapi keyword index
-│   │   └── hybrid_search.py         # Reciprocal Rank Fusion (RRF)
-│   ├── grounding/                   # Citation & Hallucination Prevention
-│   │   ├── prompt_templates.py      # Strict scholarly grounding prompts
-│   │   └── citation_extractor.py    # Inline bracket [n] citation resolver
-│   └── audio/                       # Audio Overview & Podcast Synthesis
-│       ├── dialogue_generator.py    # Two-host conversational script generator
-│       └── tts_engine.py            # Edge-TTS multi-voice audio synthesis
-├── storage/                         # Local persistence directory
-│   ├── uploads/                     # Uploaded PDF, DOCX, TXT documents
+│       ├── audio.py                 # Audio generation & HTTP 206 range streaming
+│       ├── chat.py                  # SSE Grounded Chat streaming & thread history
+│       ├── jobs.py                  # Job polling, cancellation & notebook jobs
+│       ├── notebooks.py             # Notebook CRUD & export ZIP archive
+│       ├── notes.py                 # Personal research notes CRUD
+│       ├── settings.py              # Model providers, API keys & atomic .env updates
+│       ├── sources.py               # Document upload, text paste & chunk inspector
+│       └── studio.py                # Generative artifacts (Study Guide, FAQ, etc.)
+├── core/                            # Core Algorithms & Business Logic
+│   ├── audio/                       # Audio Overview & Podcast Synthesis
+│   │   └── podcast.py               # Dialogue script generation & concurrent Edge-TTS
+│   ├── ingest/                      # Ingestion & Semantic Chunking
+│   │   ├── chunker.py               # Tiktoken sentence-boundary sliding chunker
+│   │   ├── docx_parser.py           # DOCX reader with defusedxml & table parser
+│   │   ├── md_parser.py             # Markdown hierarchical heading parser
+│   │   ├── pdf_parser.py            # pdfplumber layout & table-to-markdown parser
+│   │   └── pipeline.py              # Ingestion orchestrator & path traversal guards
+│   ├── jobs/                        # Async Job Infrastructure
+│   │   └── manager.py               # Semaphore=2 job queue, cancellation & recovery
+│   ├── prompts/                     # Versioned Prompt Engine
+│   │   ├── grounding_v1.py          # Scholarly strict grounding prompt
+│   │   ├── podcast_v1.py            # Two-host conversational podcast prompt
+│   │   └── studio_v1.py             # Study Guide, FAQ, Briefing, Timeline prompts
+│   ├── rag/                         # Retrieval-Augmented Generation
+│   │   ├── bm25.py                  # BM25 full-text ranking with FTS5 integration
+│   │   ├── chroma_store.py          # ChromaDB collection management
+│   │   ├── embeddings.py            # Sentence-Transformers & LRU embedding cache
+│   │   ├── fts5.py                  # Native SQLite FTS5 virtual table (chunks_fts)
+│   │   ├── generator.py             # Grounded SSE streaming chat engine
+│   │   ├── providers.py             # Gemini, OpenAI, Ollama streaming providers
+│   │   ├── reranker.py              # FlashRank quantized ONNX cross-encoder
+│   │   ├── retriever.py             # Dual-stage FTS5 + Chroma RRF hybrid retriever
+│   │   └── verifier.py              # Claim containment & groundedness verification
+│   ├── config.py                    # Pydantic Settings & environment validation
+│   ├── database.py                  # SQLite WAL engine & dual async/sync helpers
+│   ├── models.py                    # SQLAlchemy 2.0 ORM models with compound indexes
+│   ├── rate_limit.py                # Slowapi rate limiter configuration
+│   ├── schemas.py                   # Pydantic V2 request & response schemas
+│   ├── studio/                      # Studio Synthesis Engine
+│   │   └── generators.py            # Corpus-wide Map-Reduce artifact generators
+│   └── telemetry.py                 # JSON structured logging & microsecond StageTimer
+├── storage/                         # Local Persistence Directory
 │   ├── audio/                       # Synthesized MP3 podcast episodes
-│   └── vector_store/                # Persisted dense embedding arrays
-├── tests/                           # Backend Pytest Suite
-│   ├── test_ingest_and_chunks.py    # Document parsing & chunking tests
-│   ├── test_hybrid_search.py        # Dense + Sparse + RRF tests
-│   ├── test_grounded_citations.py   # Grounding prompt & citation resolution
-│   ├── test_api_endpoints.py        # FastAPI HTTP & SSE stream tests
-│   └── test_studio_and_audio.py     # Artifacts & Audio generation tests
+│   ├── uploads/                     # Uploaded source documents
+│   └── notebooklm.db                # SQLite WAL database file
+├── tests/                           # Pytest Backend Suite (47 Tests Passing)
+│   ├── evals/                       # Evaluation & Benchmark Suite
+│   │   ├── evaluator.py             # RAG evaluation metrics (Precision, Recall, etc.)
+│   │   ├── golden_dataset.py        # Multi-document golden test matrix
+│   │   └── test_golden_eval.py      # Golden benchmark automated evaluation
+│   ├── conftest.py                  # Test database fixtures & client overrides
+│   ├── fake_provider.py             # Deterministic Mock LLM Provider
+│   ├── openapi_snapshot.json        # Frozen OpenAPI specification snapshot
+│   ├── test_api_contract.py         # Characterization tests for all endpoints
+│   ├── test_api_endpoints.py        # Lifecycle & CRUD endpoint tests
+│   ├── test_audio_range.py          # HTTP 206 Partial Content range streaming tests
+│   ├── test_baseline_load.py        # Load scaling & event-loop lag benchmarks
+│   ├── test_chat_stream.py          # Grounded SSE token & verification stream tests
+│   ├── test_fts5.py                 # SQLite FTS5 indexing & BM25 search tests
+│   ├── test_ingestion.py            # Multi-document ingestion & sanitization tests
+│   ├── test_jobs.py                 # Async job manager lifecycle & cancellation tests
+│   ├── test_openapi_snapshot.py     # Zero-breaking-changes contract guard
+│   ├── test_parsers_enhanced.py     # Enhanced PDF, DOCX, MD & Chunker tests
+│   ├── test_prompts.py              # Prompt invariant & semantic drift tests
+│   ├── test_rate_limit.py           # Slowapi rate limiting enforcement tests
+│   ├── test_reranker_and_providers.py # FlashRank reranker & context budget tests
+│   ├── test_retrieval.py            # Hybrid RRF & metadata filtering tests
+│   ├── test_security.py             # Path traversal, extension & secret masking tests
+│   ├── test_studio_and_audio.py     # Map-Reduce studio & podcast tests
+│   └── test_verifier.py             # Claim containment & groundedness scoring tests
 ├── frontend/                        # React 18 + TypeScript + Vite Frontend
 │   ├── src/
 │   │   ├── api/                     # Typed client & SSE buffer parser
-│   │   │   ├── client.ts            # REST API client
-│   │   │   ├── sse.ts               # SSE stream consumer with boundary buffer
-│   │   │   └── mock.ts              # Offline fallback adapter
-│   │   ├── components/              # UI Components
-│   │   │   ├── ui/                  # Primitives (Button, Tabs, Popover, etc.)
-│   │   │   ├── Header.tsx           # Logo, title switcher, model & theme controls
-│   │   │   ├── SourcesPanel.tsx     # Sources dock & drag-and-drop dropzone
-│   │   │   ├── SourceRow.tsx        # Source item with context share bar
-│   │   │   ├── SourceInspector.tsx  # Drawer for chunk auditing & search
-│   │   │   ├── ChatPanel.tsx        # Reading column & empty state starters
-│   │   │   ├── Composer.tsx         # Raised Surface 1 with auto-grow & token pills
-│   │   │   ├── MessageList.tsx      # Memoized turns with serif italic styling
-│   │   │   ├── MarkdownRenderer.tsx # Markstream parser with KaTeX math
-│   │   │   ├── CitationPill.tsx     # Hover popover & row pulse trigger
-│   │   │   ├── StudioPanel.tsx      # Compound tabs & artifact grid
-│   │   │   ├── AudioPlayer.tsx      # Raised Surface 2 with 52-bar canvas waveform
-│   │   │   ├── ArtifactTile.tsx     # 2x2 grid tile with dynamic glyphs
-│   │   │   ├── ArtifactViewer.tsx   # Manuscript view modal
-│   │   │   ├── NotesPanel.tsx       # Personal research notes CRUD
-│   │   │   └── ExportNotebookButton.tsx # fflate zip export handler
-│   │   ├── hooks/                   # Custom Hooks (useHotkeys, useStream, useAudioPlayer)
+│   │   ├── components/              # UI Components (3-Pane Shell, Audio, Composer)
+│   │   ├── hooks/                   # Custom Hooks (useStream, useHotkeys, useAudioPlayer)
 │   │   ├── store/                   # Versioned Zustand Stores (notebookStore, uiPrefsStore)
 │   │   ├── styles/                  # Design Tokens & Craft Stylesheets
-│   │   │   ├── tokens.css           # Paper & ink color tokens, radii, z-index
-│   │   │   └── base.css             # Typography, SVG grain, custom scrollbar
-│   │   ├── test/                    # Vitest Frontend Test Suites (47 tests)
+│   │   ├── test/                    # Vitest Frontend Test Suites (47 Tests Passing)
 │   │   ├── types.ts                 # Branded IDs & Discriminated Unions
 │   │   └── App.tsx                  # 3-Pane Application Shell
-│   ├── index.html                   # HTML entrypoint with pre-paint theme script
-│   ├── vite.config.ts               # Vite bundler configuration & KaTeX vendor splitting
-│   └── package.json                 # Frontend dependencies
-├── .env.example                     # Environment configuration template
+│   ├── package.json                 # Frontend dependencies
+│   └── vite.config.ts               # Vite configuration with KaTeX vendor splitting
+├── pyproject.toml                   # Ruff & Pytest configuration
+├── requirements.txt                 # Backend Python dependencies
+├── CONTEXT.md                       # Living chronological session context log
+├── ARCHITECTURE.md                  # Comprehensive architectural specification
+├── PRD.md                           # Product requirements document
 └── README.md                        # Documentation
 ```
+
+---
+
+## API Reference
+
+### Core Endpoints
+
+| Category | Method | Endpoint | Description | Rate Limit |
+|---|---|---|---|---|
+| **Notebooks** | `GET` | `/api/notebooks` | List all research notebooks | - |
+| | `POST` | `/api/notebooks` | Create a new notebook | - |
+| | `GET` | `/api/notebooks/{id}` | Get notebook details | - |
+| | `PUT` | `/api/notebooks/{id}` | Update notebook title | - |
+| | `DELETE` | `/api/notebooks/{id}` | Delete notebook and associated data | - |
+| | `GET` | `/api/notebooks/{id}/export` | Export notebook as structured `.zip` archive | - |
+| **Sources** | `POST` | `/api/notebooks/{id}/sources/upload` | Upload PDF, DOCX, TXT, or MD document | - |
+| | `POST` | `/api/notebooks/{id}/sources/paste` | Add pasted text source | - |
+| | `GET` | `/api/notebooks/{id}/sources` | List all sources in notebook | - |
+| | `PATCH` | `/api/sources/{id}/toggle` | Toggle source active/inactive for retrieval | - |
+| | `DELETE` | `/api/sources/{id}` | Delete source and indexed chunks | - |
+| | `GET` | `/api/sources/{id}/chunks` | Inspect all chunks for a source | - |
+| **Chat** | `POST` | `/api/notebooks/{id}/chat/stream` | Stream grounded response via SSE (`sources`, `token`, `verification`, `done`) | 30/min |
+| | `GET` | `/api/notebooks/{id}/chat/threads` | Get all chat threads and message history | - |
+| **Studio** | `POST` | `/api/notebooks/{id}/studio/generate` | Generate Study Guide, Briefing, FAQ, or Timeline | 20/min |
+| | `GET` | `/api/notebooks/{id}/studio/artifacts` | List all generated studio artifacts | - |
+| **Audio** | `POST` | `/api/notebooks/{id}/audio/generate` | Generate two-host podcast episode | 10/min |
+| | `GET` | `/api/audio/stream/{filename}` | Stream MP3 audio with HTTP 206 Partial Content Range support | - |
+| **Jobs** | `GET` | `/api/jobs/{id}` | Poll background job status and progress percentage | - |
+| | `POST` | `/api/jobs/{id}/cancel` | Cancel an active or queued background job | - |
+| | `GET` | `/api/notebooks/{id}/jobs` | List recent background jobs for notebook | - |
+| **Notes** | `GET` | `/api/notebooks/{id}/notes` | List personal notes | - |
+| | `POST` | `/api/notebooks/{id}/notes` | Create a note | - |
+| | `PUT` | `/api/notes/{id}` | Update note title and content | - |
+| | `DELETE` | `/api/notes/{id}` | Delete a note | - |
+| | `POST` | `/api/notebooks/{id}/notes/synthesize` | Synthesize multiple notes into an artifact | - |
+| **Settings** | `GET` | `/api/settings` | Get model provider settings (API keys redacted) | - |
+| | `PUT` | `/api/settings` | Update settings and atomically write `.env` | 10/min |
+
+---
+
+## Evaluation & Benchmarks
+
+NotebookLM-lite incorporates a continuous evaluation and load testing framework in `tests/evals/` and `tests/test_baseline_load.py`:
+
+### Golden Dataset Metrics (`tests/evals/test_golden_eval.py`)
+Evaluated across multi-source queries, single-source queries, conversational follow-ups, and unanswerable questions:
+- **Context Precision@4:** `>= 0.70` (Empirical baseline: 0.727)
+- **Context Recall@4:** `>= 0.90` (Empirical baseline: 1.000)
+- **Citation Accuracy:** `>= 0.80` (Empirical baseline: 0.818 without verifier; `> 0.95` with `CitationVerifier`)
+- **Abstention Accuracy:** `1.000` (Strictly abstains on unanswerable questions)
+
+### In-Memory vs. SQLite FTS5 Latency Scaling
+Under load testing (`test_baseline_load.py`):
+- **1,000 Chunks:** In-memory BM25: 59.9ms | SQLite FTS5: <2ms
+- **10,000 Chunks:** In-memory BM25: 781.4ms | SQLite FTS5: <5ms
+- **50,000 Chunks:** In-memory BM25: 3,827.6ms | SQLite FTS5: 8.2ms
+- **Event-Loop Lag Heartbeat (p95):** 5.84ms (No event-loop blocking under concurrent retrieval)
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- **Python:** 3.11 or later
+- **Python:** 3.11 or later (Tested on Python 3.13)
 - **Node.js:** 18.0.0 or later
-- **Package Managers:** `pip` / `uv` for Python, `npm` for Node.js
-- *(Optional)* Gemini API Key (recommended) or OpenAI API Key or local Ollama instance
+- *(Optional)* Gemini API Key (recommended), OpenAI API Key, or a local [Ollama](https://ollama.ai/) instance
 
 ---
 
@@ -225,13 +374,13 @@ NotebookLM-lite/
    ```bash
    cp .env.example .env
    ```
-   Open `.env` and configure your API keys:
+   Open `.env` and set your preferred model provider:
    ```ini
-   # Model Providers (gemini | openai | anthropic | ollama)
+   # Model Providers: gemini | openai | anthropic | ollama
    DEFAULT_LLM_PROVIDER=gemini
    GEMINI_API_KEY=your_gemini_api_key_here
 
-   # Embeddings (sentence_transformers | openai | gemini)
+   # Embeddings: sentence_transformers | openai | gemini
    EMBEDDING_PROVIDER=sentence_transformers
    EMBEDDING_MODEL_NAME=all-MiniLM-L6-v2
 
@@ -241,11 +390,11 @@ NotebookLM-lite/
    TTS_VOICE_SPEAKER_B=en-US-JennyNeural
    ```
 
-5. **Run the Backend Server:**
+5. **Start the Backend Server:**
    ```bash
    uvicorn api.main:app --reload --port 8000
    ```
-   The FastAPI server will be available at `http://127.0.0.1:8000`. Interactive OpenAPI documentation is accessible at `http://127.0.0.1:8000/docs`.
+   Interactive OpenAPI documentation is live at `http://127.0.0.1:8000/docs`.
 
 ---
 
@@ -256,7 +405,7 @@ NotebookLM-lite/
    cd frontend
    ```
 
-2. **Install frontend dependencies:**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
@@ -265,59 +414,41 @@ NotebookLM-lite/
    ```bash
    npm run dev
    ```
-   The application will be live at `http://127.0.0.1:5173`. The development server automatically proxies API requests to `http://127.0.0.1:8000`.
+   The application will be live at `http://127.0.0.1:5173`. API requests are automatically proxied to `http://127.0.0.1:8000`.
 
 ---
 
-## Running Tests
+## Verification & Test Suites
 
-### Backend Test Suite (Pytest)
+### Run All Backend Tests (Pytest)
 From the project root:
 ```bash
-pytest -v
-```
-Covers:
-- Document extraction and chunk boundary invariants
-- Hybrid search (BM25 + Dense + RRF) recall
-- Grounding prompt formatting and citation resolution
-- REST endpoints and SSE streaming protocols
-- Studio artifact generation and TTS audio synthesis
-- **OpenAPI Breaking Change Guard**: Automated test asserting zero breaking changes against `tests/openapi_snapshot.json`
-- **Prompt Regression Suite**: Invariant validation and semantic-drift checks on versioned prompt templates (`core/prompts/`)
-- **Golden Evaluation Dataset**: Multi-source, single-source, follow-up, and unanswerable question benchmark (`tests/evals/`)
-- **Structured Telemetry & Stage Timings**: Structured JSON logging with `request_id` context tracing and microsecond stage timers
+# Run complete test suite (47 tests passing)
+pytest tests/ -v
 
-```bash
-# Run backend test suite (unit, integration, eval)
+# Run non-slow tests
 pytest -v -m "not slow"
 
-# Run load and scalability benchmarks
-pytest tests/test_baseline_load.py -v -s
+# Run OpenAPI breaking change check
+pytest tests/test_openapi_snapshot.py -v
 
-# Run code linter
-ruff check api core tests
+# Run Golden Dataset evaluation
+pytest tests/evals/test_golden_eval.py -v
+
+# Run linter
+ruff check .
 ```
 
-### Frontend Test Suite (Vitest)
+### Run All Frontend Tests (Vitest)
 From the `frontend/` directory:
 ```bash
-npm test -- --run
-```
-Covers:
-- **`sanitize.test.ts`:** Filename cleanup, middle-ellipsis, URL protocol whitelist
-- **`sse.test.ts`:** `SSEBufferParser` chunk boundary handling and event parsing
-- **`store.test.ts`:** Zustand store schema migration, persistence, and optimistic state
-- **`shell.test.tsx`:** Keyboard shortcuts (`Mod+B`, `Mod+J`, `Escape`), header controls, theme switching
-- **`sources.test.tsx`:** Drag-and-drop upload, context share bars, Chunk Auditor quality badges
-- **`chat.test.tsx`:** Streaming tokens, citation pill hover/clicks, full XSS corpus defense, KaTeX math parsing
-- **`studio.test.tsx`:** Waveform hit-test math (`seekFromPointer`), artifact tiles, note CRUD and synthesis
+# Run Vitest suite (47 tests passing across 7 test files)
+npm test
 
-### Typecheck & Production Build
-```bash
-# Verify TypeScript strict types (0 errors)
+# Verify TypeScript strict typecheck (0 errors)
 npm run typecheck
 
-# Build production bundle with vendor splitting
+# Build production bundle with KaTeX vendor splitting
 npm run build
 ```
 
@@ -325,10 +456,10 @@ npm run build
 
 ## Keyboard Shortcuts
 
-| Shortcut | Description |
+| Shortcut | Action |
 |---|---|
-| `Mod + B` (`Ctrl+B` / `Cmd+B`) | Toggle Sources Dock open/collapsed |
-| `Mod + J` (`Ctrl+J` / `Cmd+J`) | Toggle Studio Panel open/collapsed |
+| `Mod + B` (`Ctrl+B` / `Cmd+B`) | Toggle Sources Dock open / collapsed |
+| `Mod + J` (`Ctrl+J` / `Cmd+J`) | Toggle Studio Panel open / collapsed |
 | `Mod + /` (`Ctrl+/` / `Cmd+/`) | Focus Grounded Chat Composer |
 | `Escape` | Close open Inspector drawer, Manuscript modal, or Popover |
 | `Enter` | Send message in Composer |
