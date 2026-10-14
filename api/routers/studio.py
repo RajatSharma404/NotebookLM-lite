@@ -1,9 +1,10 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.models import Notebook, StudioArtifact
+from core.rate_limit import limiter
 from core.schemas import StudioArtifactGenerateRequest, StudioArtifactResponse
 from core.studio.generators import StudioGenerator
 
@@ -17,9 +18,11 @@ def list_studio_artifacts(notebook_id: str, db: Session = Depends(get_db)):
     return db.query(StudioArtifact).filter(StudioArtifact.notebook_id == notebook_id).order_by(StudioArtifact.created_at.desc()).all()
 
 @router.post("/generate", response_model=StudioArtifactResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 async def generate_studio_artifact(
     notebook_id: str,
     payload: StudioArtifactGenerateRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
