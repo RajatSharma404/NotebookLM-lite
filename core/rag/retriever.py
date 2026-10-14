@@ -87,8 +87,15 @@ class HybridRetriever:
             dense_ranked_indices = np.argsort(dense_scores)[::-1]
             dense_ranked_ids = [chunk_dicts[idx]["id"] for idx in dense_ranked_indices]
 
-        # 3. Sparse BM25 Keyword Retrieval
-        bm25_ranked = BM25Retriever.rank(query, chunk_dicts, top_k=len(chunk_dicts))
+        # 3. Sparse BM25 Keyword Retrieval (Primary: SQLite FTS5; Fallback: in-memory BM25Okapi)
+        bm25_ranked = BM25Retriever.rank_with_fts5(
+            db=db,
+            query=query,
+            notebook_id=notebook_id,
+            active_source_ids=active_source_ids,
+            corpus_chunks=chunk_dicts,
+            top_k=min(50, len(chunk_dicts))
+        )
         bm25_ranked_ids = [cid for cid, _ in bm25_ranked]
 
         # 4. Reciprocal Rank Fusion (RRF)
@@ -102,7 +109,13 @@ class HybridRetriever:
 
         # Sort by final fused RRF score
         sorted_rrf = sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True)
-        top_selected_ids = [cid for cid, score in sorted_rrf[:top_k]]
+        candidate_ids = [cid for cid, _ in sorted_rrf[:top_k * 3]]
+        candidates = [chunk_id_map[cid] for cid in candidate_ids if cid in chunk_id_map]
+
+        # 5. Cross-Encoder Re-ranking via FlashRank
+        from core.rag.reranker import flashrank_reranker
+        reranked_chunks = flashrank_reranker.rerank(query, candidates, top_k=top_k)
+        top_selected_ids = [c["id"] for c in reranked_chunks]
 
         # 5. Format Context Blocks and Citations
         context_blocks = []
