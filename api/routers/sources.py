@@ -128,5 +128,12 @@ def delete_source(notebook_id: str, source_id: str, db: Session = Depends(get_db
     except Exception:
         pass
 
+    # Prune full-text entries from SQLite FTS5
+    try:
+        from core.rag.fts5 import FTS5IndexManager
+        FTS5IndexManager.delete_source_chunks(db, source_id)
+    except Exception:
+        pass
+
     db.delete(source)
     db.commit()
