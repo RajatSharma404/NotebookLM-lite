@@ -42,6 +42,8 @@ class SourceResponse(SourceBase):
     file_size: int
     token_count: int
     created_at: datetime
+    parser_version: str | None = None
+    chunker_version: str | None = None
 
     class Config:
         from_attributes = True
@@ -54,6 +56,12 @@ class CitationItem(BaseModel):
     source_title: str
     page_number: int = 1
     snippet: str
+    snippet_char_start: int | None = None
+    snippet_char_end: int | None = None
+    rerank_score: float | None = None
+    verification_status: str | None = None
+    verification_score: float | None = None
+    flags: list[str] | None = None
 
 class ChunkResponse(BaseModel):
     id: str
@@ -132,6 +140,9 @@ class StudioArtifactResponse(BaseModel):
     content_json: str | None = None
     content_markdown: str | None = None
     media_url: str | None = None
+    chunks_total: int | None = None
+    chunks_used: int | None = None
+    sources_used: int | None = None
     created_at: datetime
 
     class Config:
@@ -149,3 +160,20 @@ class AudioOverviewResponse(BaseModel):
     dialogue: list[DialogueLine]
     audio_url: str | None = None
     duration_seconds: float | None = None
+
+# Job System Schemas
+class JobResponse(BaseModel):
+    id: str
+    kind: str
+    notebook_id: str | None = None
+    status: str
+    stage: str | None = None
+    progress: float = 0.0
+    result_ref: str | None = None
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
