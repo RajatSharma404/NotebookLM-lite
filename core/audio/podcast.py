@@ -1,47 +1,23 @@
-import os
 import json
+import os
 import uuid
-import asyncio
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+
 from sqlalchemy.orm import Session
 
 from core.config import settings
-from core.models import Source, Chunk, StudioArtifact
+from core.models import Chunk, Source, StudioArtifact
+from core.prompts import PODCAST_SCRIPT_PROMPT_V1
 from core.rag.providers import LLMProvider
 
-PODCAST_SCRIPT_PROMPT = """You are an award-winning executive podcast producer creating a viral two-host Deep Dive discussion.
-Your hosts are:
-- Host 1 (Alex - Lead Analyst): Grounded, analytical, authoritative, breaks down complex mechanisms clearly. Voice: en-US-GuyNeural.
-- Host 2 (Morgan - Curious Co-host): Energetic, asks insightful clarifying questions, uses everyday analogies, challenges jargon. Voice: en-US-JennyNeural.
-
-Tone & Style Guidelines:
-- Natural, lively, intellectual chemistry between the two hosts.
-- Include conversational turn-taking, reactions ("Wait, so you're saying...", "Exactly!"), and clear analogies.
-- Directly discuss and illuminate the core ideas from the provided documents.
-
-IMPORTANT: Output your entire response strictly as a JSON array of dialogue objects. Do NOT include markdown code blocks (```json) or extra text.
-Schema:
-[
-  {
-    "speaker": "Alex",
-    "voice_id": "en-US-GuyNeural",
-    "text": "Welcome back! Today we're diving into a document that completely shifts how we think about attention mechanisms."
-  },
-  {
-    "speaker": "Morgan",
-    "voice_id": "en-US-JennyNeural",
-    "text": "Right! And what blew my mind when reading through this is that they literally dropped recurrent connections entirely."
-  }
-]
-"""
+PODCAST_SCRIPT_PROMPT = PODCAST_SCRIPT_PROMPT_V1
 
 class PodcastEngine:
     @staticmethod
     async def generate_podcast_dialogue(
         notebook_id: str,
         db: Session
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """
         Generates structured 2-speaker podcast dialogue script from active notebook documents.
         """
@@ -51,7 +27,7 @@ class PodcastEngine:
             .join(Source, Chunk.source_id == Source.id)
             .filter(
                 Chunk.notebook_id == notebook_id,
-                Source.is_active == True
+                Source.is_active
             )
             .all()
         )
@@ -74,12 +50,9 @@ class PodcastEngine:
         raw_script = "".join(tokens).strip()
 
         # Clean JSON markdown fences if present
-        if raw_script.startswith("```json"):
-            raw_script = raw_script[7:]
-        if raw_script.startswith("```"):
-            raw_script = raw_script[3:]
-        if raw_script.endswith("```"):
-            raw_script = raw_script[:-3]
+        raw_script = raw_script.removeprefix("```json")
+        raw_script = raw_script.removeprefix("```")
+        raw_script = raw_script.removesuffix("```")
 
         try:
             dialogue = json.loads(raw_script.strip())
@@ -114,9 +87,9 @@ class PodcastEngine:
 
     @staticmethod
     async def synthesize_podcast_audio(
-        dialogue: List[Dict[str, str]],
+        dialogue: list[dict[str, str]],
         output_filename: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Synthesizes each dialogue line with Edge-TTS and concatenates audio segments.
         """
@@ -129,7 +102,7 @@ class PodcastEngine:
         temp_dir = settings.STORAGE_AUDIO_DIR / f"temp_{uuid.uuid4().hex[:8]}"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
-        segment_paths: List[Path] = []
+        segment_paths: list[Path] = []
 
         try:
             for idx, line in enumerate(dialogue):
@@ -155,7 +128,7 @@ class PodcastEngine:
 
             return f"/api/audio/stream/{output_filename}"
 
-        except Exception as e:
+        except Exception:
             return None
         finally:
             # Clean temporary segments
