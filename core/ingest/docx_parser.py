@@ -1,18 +1,19 @@
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
+
 
 class DocxParser:
     @staticmethod
-    def parse(file_path: Path) -> List[Dict[str, Any]]:
+    def parse(file_path: Path) -> list[dict[str, Any]]:
         """
         Parses Microsoft Word (.docx) documents preserving heading structure.
         """
         import docx
         doc = docx.Document(str(file_path))
-        
+
         sections = []
         current_section = "Document Content"
-        current_paragraphs: List[str] = []
+        current_paragraphs: list[str] = []
 
         for p in doc.paragraphs:
             text = p.text.strip()
