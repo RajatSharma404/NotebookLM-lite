@@ -1,7 +1,7 @@
-import math
 import hashlib
+
 import numpy as np
-from typing import List
+
 
 class EmbeddingProvider:
     """
@@ -22,10 +22,10 @@ class EmbeddingProvider:
             # Keep None, fallback to fast deterministic hashing vectorizer
             self._st_model = None
 
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str) -> list[float]:
         return self.embed_batch([text])[0]
 
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
 
