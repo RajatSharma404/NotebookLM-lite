@@ -1,11 +1,12 @@
 import os
 import re
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from filelock import FileLock
 from pydantic import BaseModel, Field, field_validator
 
 from core.config import BASE_DIR, settings
+from core.rate_limit import limiter
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -59,7 +60,8 @@ def get_settings():
 
 
 @router.post("")
-def update_settings(payload: SettingsUpdateRequest):
+@limiter.limit("10/minute")
+def update_settings(payload: SettingsUpdateRequest, request: Request):
     """
     Updates settings and writes to .env atomically with a file lock and restricted permissions.
     """
