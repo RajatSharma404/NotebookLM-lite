@@ -37,6 +37,11 @@ def get_conventional_message(file_path: str, status_code: str) -> str:
         return f"feat({sub}): {action} {basename}"
     elif norm_path.startswith("frontend/"):
         return f"feat(ui): {action} {basename} frontend component"
+    elif norm_path.startswith("tests/"):
+        sub = norm_path.split("/")[1] if len(norm_path.split("/")) > 2 else "unit"
+        return f"test({sub}): {action} {basename}"
+    elif norm_path.startswith("alembic/"):
+        return f"chore(alembic): {action} {basename} migration file"
     elif norm_path.startswith("storage/"):
         return f"chore(storage): {action} {basename} storage configuration"
     else:
