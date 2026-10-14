@@ -1,6 +1,7 @@
 import io
-import pytest
+
 from fastapi.testclient import TestClient
+
 
 def test_source_upload_path_traversal_prevention(client: TestClient, test_notebook):
     """Ensure directory traversal filenames are sanitized and cannot write outside uploads dir."""
