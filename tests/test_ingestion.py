@@ -1,8 +1,7 @@
-import pytest
-from core.models import Notebook, Source, Chunk
-from core.ingest.pipeline import IngestionPipeline
-from core.ingest.chunker import SemanticChunker
 from core.ingest.pdf_parser import PDFParser
+from core.ingest.pipeline import IngestionPipeline
+from core.models import Chunk
+
 
 def test_pasted_text_ingestion(db_session, test_notebook):
     """Test ingestion of markdown pasted text into sources and chunks."""
