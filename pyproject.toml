@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 [tool.ruff]
 target-version = "py311"
 line-length = 120
+extend-exclude = [".agents", ".venv", "frontend", "alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "C4", "RUF"]
