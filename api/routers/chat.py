@@ -1,11 +1,12 @@
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.models import ChatThread, Notebook
 from core.rag.generator import GroundedChatEngine
+from core.rate_limit import limiter
 from core.schemas import (
     ChatQueryRequest,
     ChatThreadResponse,
@@ -52,10 +53,13 @@ def get_chat_threads(notebook_id: str, db: Session = Depends(get_db)):
         ))
     return results
 
+
 @router.post("/stream")
+@limiter.limit("30/minute")
 async def stream_chat(
     notebook_id: str,
     payload: ChatQueryRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
@@ -78,7 +82,8 @@ async def stream_chat(
             thread_id=thread_id,
             db=db,
             llm_provider=payload.llm_provider,
-            model_name=payload.model_name
+            model_name=payload.model_name,
+            request=request
         ),
         media_type="text/event-stream"
     )
