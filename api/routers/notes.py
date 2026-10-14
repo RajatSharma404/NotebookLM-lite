@@ -1,13 +1,14 @@
-from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from core.database import get_db
-from core.models import Notebook, Note
-from core.schemas import NoteCreate, NoteUpdate, NoteResponse, SynthesizeNotesRequest
+from core.models import Note, Notebook
+from core.schemas import NoteCreate, NoteResponse, NoteUpdate, SynthesizeNotesRequest
 
 router = APIRouter(prefix="/notebooks/{notebook_id}/notes", tags=["Notes"])
 
-@router.get("", response_model=List[NoteResponse])
+@router.get("", response_model=list[NoteResponse])
 def list_notes(notebook_id: str, db: Session = Depends(get_db)):
     nb = db.query(Notebook).filter(Notebook.id == notebook_id).first()
     if not nb:
@@ -49,7 +50,6 @@ def delete_note(notebook_id: str, note_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Note not found")
     db.delete(note)
     db.commit()
-    return None
 
 @router.post("/synthesize", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 async def synthesize_notes(
@@ -65,7 +65,7 @@ async def synthesize_notes(
         raise HTTPException(status_code=400, detail="No matching notes found for synthesis")
 
     combined_text = "\n\n---\n\n".join([f"### Note: {n.title}\n{n.content}" for n in notes])
-    
+
     prompt = f"Synthesize these {len(notes)} related research notes into a cohesive summary with Key Themes, Connected Insights, and Actionable Takeaways:\n\n{combined_text}"
     system_instruction = (
         "You are an expert research synthesizer. Merge the provided user notes into an interconnected synthesis report. "
