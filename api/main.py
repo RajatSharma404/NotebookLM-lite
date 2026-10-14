@@ -4,11 +4,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from api.routers.audio import router as audio_router
 from api.routers.chat import router as chat_router
 
 # Routers
+from api.routers.jobs import router as jobs_router
 from api.routers.notebooks import router as notebooks_router
 from api.routers.notes import router as notes_router
 from api.routers.settings import router as settings_router
@@ -16,7 +19,9 @@ from api.routers.sources import router as sources_router
 from api.routers.studio import router as studio_router
 from core.config import settings
 from core.database import SessionLocal, init_db
+from core.jobs import job_manager
 from core.models import Notebook
+from core.rate_limit import limiter
 from core.telemetry import logger, request_id_ctx, setup_telemetry
 
 
@@ -39,6 +44,9 @@ async def lifespan(app: FastAPI):
     # Initialize SQLite database schema
     init_db()
 
+    # Recover any interrupted jobs from previous server run
+    await job_manager.startup_recovery()
+
     # Seed default notebook if empty
     db = SessionLocal()
     try:
@@ -53,12 +61,15 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down NotebookLM-lite backend...")
 
+
 app = FastAPI(
     title="NotebookLM-lite API",
     description="Grounded AI Research Assistant with Verifiable Citations and Studio Artifacts",
     version="1.0.0",
     lifespan=lifespan
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Request ID Tracing Middleware
 @app.middleware("http")
@@ -82,6 +93,7 @@ app.add_middleware(
 )
 
 # Mount Routers
+app.include_router(jobs_router, prefix="/api")
 app.include_router(notebooks_router, prefix="/api")
 app.include_router(sources_router, prefix="/api")
 app.include_router(chat_router, prefix="/api")
