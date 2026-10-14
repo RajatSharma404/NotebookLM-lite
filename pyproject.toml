@@ -1,0 +1,29 @@
+[project]
+name = "notebooklm-lite"
+version = "1.0.0"
+description = "Grounded AI Research Assistant with Verifiable Citations and Studio Artifacts"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "RUF"]
+ignore = [
+    "E501",  # line length handled by formatter
+    "B008",  # do not perform function calls in argument defaults (FastAPI Depends)
+    "RUF012", # mutable class attributes in Pydantic / logging
+    "B904",  # raise from within except
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "unit: fast isolated unit tests",
+    "integration: multi-component integration tests",
+    "eval: evaluation and regression tests",
+    "slow: slow-running load/stress tests",
+]
