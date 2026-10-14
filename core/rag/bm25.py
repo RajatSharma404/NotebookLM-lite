@@ -1,13 +1,15 @@
 import re
-from typing import List, Dict, Any, Tuple
+from typing import Any
+
 from rank_bm25 import BM25Okapi
+
 
 class BM25Retriever:
     """
     Lightweight, high-speed sparse lexical search index for exact keyword matching.
     """
     @staticmethod
-    def tokenize(text: str) -> List[str]:
+    def tokenize(text: str) -> list[str]:
         # Lowercase and extract alphanumeric words
         clean = text.lower()
         tokens = re.findall(r'\b[a-z0-9_-]+\b', clean)
@@ -17,9 +19,9 @@ class BM25Retriever:
     def rank(
         cls,
         query: str,
-        corpus_chunks: List[Dict[str, Any]],
+        corpus_chunks: list[dict[str, Any]],
         top_k: int = 20
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """
         Ranks corpus_chunks against query using BM25Okapi.
         Each chunk dict should have 'id' and 'content'.
