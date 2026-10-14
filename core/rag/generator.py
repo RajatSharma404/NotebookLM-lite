@@ -1,6 +1,7 @@
 import json
 from collections.abc import AsyncGenerator
 
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from core.models import CitationRef, Message
@@ -18,11 +19,13 @@ class GroundedChatEngine:
         thread_id: str,
         db: Session,
         llm_provider: str | None = None,
-        model_name: str | None = None
+        model_name: str | None = None,
+        request: Request | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Executes grounded retrieval, builds strict prompt, streams SSE events,
         and saves message and citation references to SQLite.
+        Terminates token generation early if client disconnects.
         """
         # 1. Retrieve hybrid context
         context_str, citations = HybridRetriever.retrieve(query, notebook_id, db)
@@ -51,6 +54,8 @@ class GroundedChatEngine:
             provider=llm_provider,
             model=model_name
         ):
+            if request is not None and await request.is_disconnected():
+                break
             full_content_accum.append(token)
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
@@ -79,6 +84,16 @@ class GroundedChatEngine:
             citation_records.append(rec)
 
         db.add_all(citation_records)
+
+        # 4. Post-stream citation verification
+        from core.rag.verifier import CitationVerifier
+        verification = CitationVerifier.verify(assistant_text, citations)
+
+        # Emit additive verification event
+        yield f"data: {json.dumps({'type': 'verification', 'status': verification['overall_status'], 'groundedness': verification['overall_groundedness'], 'citation_map': verification['citation_map']})}\n\n"
+
+        assistant_msg.verification_status = verification["overall_status"]
+        assistant_msg.citation_map = json.dumps(verification["citation_map"])
         db.commit()
 
         # Emit completion
