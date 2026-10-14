@@ -1,9 +1,12 @@
-import json
 import asyncio
+import json
 import re
+from collections.abc import AsyncGenerator
+
 import httpx
-from typing import AsyncGenerator, Dict, Any, List
+
 from core.config import settings
+
 
 class LLMProvider:
     """
@@ -19,8 +22,8 @@ class LLMProvider:
         cls,
         prompt: str,
         system_instruction: str,
-        provider: str = None,
-        model: str = None
+        provider: str | None = None,
+        model: str | None = None
     ) -> AsyncGenerator[str, None]:
         provider = provider or settings.DEFAULT_LLM_PROVIDER
 
@@ -78,13 +81,17 @@ class LLMProvider:
 
     @classmethod
     async def _stream_gemini(cls, prompt: str, system_instruction: str, api_key: str) -> AsyncGenerator[str, None]:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key={api_key}&alt=sse"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse"
+        headers = {
+            "x-goog-api-key": api_key,
+            "Content-Type": "application/json"
+        }
         payload = {
             "system_instruction": {"parts": [{"text": system_instruction}]},
             "contents": [{"role": "user", "parts": [{"text": prompt}]}]
         }
         async with httpx.AsyncClient(timeout=45.0) as client:
-            async with client.stream("POST", url, json=payload) as response:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
                 if response.status_code != 200:
                     err_body = await response.aread()
                     raise RuntimeError(f"HTTP {response.status_code}: {err_body.decode('utf-8', errors='ignore')[:200]}")
@@ -211,7 +218,8 @@ class LLMProvider:
         raw_blocks = re.split(r'(?:^|\n)(?=\[Source \d+\]:)', system_instruction.strip())
         blocks = []
         for b in raw_blocks:
-            if not b.strip(): continue
+            if not b.strip():
+                continue
             lines = b.splitlines()
             first_line = lines[0]
             text = "\n".join(lines[1:]).strip().strip('"')
@@ -239,7 +247,7 @@ class LLMProvider:
             "breakdown", "roadmap", "pdf", "document", "everything", "all", "what is it"
         ])
 
-        output_parts: List[str] = []
+        output_parts: list[str] = []
 
         if is_overview_request:
             output_parts.append(f"### Comprehensive Synthesis: `{primary_doc}`\n\n")
@@ -311,7 +319,7 @@ class LLMProvider:
 
             matched_passages.sort(key=lambda x: x[0], reverse=True)
             if matched_passages:
-                for count, passage, idx, meta in matched_passages[:5]:
+                for _count, passage, idx, _meta in matched_passages[:5]:
                     clean_p = re.sub(r'\s+', ' ', passage).strip()
                     output_parts.append(f"• {clean_p} [{idx}]\n\n")
             else:
