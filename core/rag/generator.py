@@ -1,26 +1,14 @@
 import json
-from typing import AsyncGenerator, Dict, Any, List
+from collections.abc import AsyncGenerator
+
 from sqlalchemy.orm import Session
 
-from core.models import Notebook, ChatThread, Message, CitationRef
-from core.rag.retriever import HybridRetriever
+from core.models import CitationRef, Message
+from core.prompts import GROUNDING_SYSTEM_TEMPLATE_V1
 from core.rag.providers import LLMProvider
+from core.rag.retriever import HybridRetriever
 
-GROUNDING_SYSTEM_TEMPLATE = """You are NotebookLM-lite, a rigorous and grounded intellectual research partner.
-Your task is to answer the user's inquiry STRICTLY and EXCLUSIVELY using the provided Source Context blocks below.
-
-CORE GROUNDING RULES:
-1. Every factual statement or assertion MUST be followed by an inline citation bracket like [1], [2], or [1, 3].
-2. The number inside [X] must correspond EXACTLY to the numbered Source block [Source X] in the context.
-3. If the provided sources DO NOT contain sufficient information to answer the question, state clearly:
-   "Based on the provided sources, there is no information regarding this topic."
-4. NEVER invent facts, infer beyond what is written, or pull knowledge from external training data.
-5. Keep explanations clear, rigorous, and directly attributed.
-
---- SOURCE CONTEXT BEGIN ---
-{context}
---- SOURCE CONTEXT END ---
-"""
+GROUNDING_SYSTEM_TEMPLATE = GROUNDING_SYSTEM_TEMPLATE_V1
 
 class GroundedChatEngine:
     @staticmethod
@@ -29,8 +17,8 @@ class GroundedChatEngine:
         notebook_id: str,
         thread_id: str,
         db: Session,
-        llm_provider: str = None,
-        model_name: str = None
+        llm_provider: str | None = None,
+        model_name: str | None = None
     ) -> AsyncGenerator[str, None]:
         """
         Executes grounded retrieval, builds strict prompt, streams SSE events,
@@ -55,7 +43,7 @@ class GroundedChatEngine:
         db.commit()
 
         # Stream LLM tokens
-        full_content_accum: List[str] = []
+        full_content_accum: list[str] = []
 
         async for token in LLMProvider.stream_response(
             prompt=query,
