@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'storage' / 'notebooklm.db'}"
+
+    @property
+    def ASYNC_DATABASE_URL(self) -> str:
+        if self.DATABASE_URL.startswith("sqlite:///"):
+            return self.DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///")
+        return self.DATABASE_URL
+
     STORAGE_UPLOADS_DIR: Path = BASE_DIR / "storage" / "uploads"
     STORAGE_AUDIO_DIR: Path = BASE_DIR / "storage" / "audio"
     STORAGE_VECTOR_DIR: Path = BASE_DIR / "storage" / "vector_store"
