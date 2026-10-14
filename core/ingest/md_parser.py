@@ -1,20 +1,21 @@
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
+
 
 class MarkdownParser:
     @staticmethod
-    def parse(file_path: Path) -> List[Dict[str, Any]]:
+    def parse(file_path: Path) -> list[dict[str, Any]]:
         """
         Parses Markdown or plain text files, preserving section hierarchies.
         Returns a list of sections: [{"page_number": 1, "text": str, "section": str}]
         """
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(file_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
 
         lines = content.splitlines()
         sections = []
         current_section = "Introduction"
-        current_lines: List[str] = []
+        current_lines: list[str] = []
 
         for line in lines:
             stripped = line.strip()
