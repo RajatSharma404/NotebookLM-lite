@@ -57,6 +57,8 @@ class IngestionPipeline:
             file_type=ext,
             file_size=file_size,
             file_path=str(dest_path),
+            parser_version="2.0.0",
+            chunker_version="2.0.0",
             is_active=True
         )
         db.add(source)
@@ -70,7 +72,8 @@ class IngestionPipeline:
             raw_chunks = SemanticChunker.chunk_section(
                 text=sec["text"],
                 page_number=sec.get("page_number", 1),
-                section_title=sec.get("section", "General")
+                section_title=sec.get("section", "General"),
+                heading_hierarchy=sec.get("heading_hierarchy")
             )
             for chk_data in raw_chunks:
                 chunk = Chunk(
@@ -112,6 +115,25 @@ class IngestionPipeline:
         except Exception:
             pass
 
+        # Index chunks into SQLite FTS5 for sub-10ms sparse lexical retrieval
+        try:
+            from core.rag.fts5 import FTS5IndexManager
+            FTS5IndexManager.init_fts5(db)
+            FTS5IndexManager.sync_chunks_batch(
+                db,
+                [
+                    {
+                        "id": c.id,
+                        "notebook_id": c.notebook_id,
+                        "source_id": c.source_id,
+                        "content": c.content
+                    }
+                    for c in all_chunks
+                ]
+            )
+        except Exception:
+            pass
+
         return source
 
     @staticmethod
@@ -132,10 +154,11 @@ class IngestionPipeline:
         if not str(dest_path).startswith(str(uploads_root)):
             raise ValueError("Path traversal attempt detected in storage destination.")
 
+        encoded_bytes = content.encode("utf-8")
         with open(dest_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-        file_size = len(content.encode("utf-8"))
+        file_size = len(encoded_bytes)
 
         source = Source(
             notebook_id=notebook_id,
@@ -143,6 +166,8 @@ class IngestionPipeline:
             file_type="txt",
             file_size=file_size,
             file_path=str(dest_path),
+            parser_version="2.0.0",
+            chunker_version="2.0.0",
             is_active=True
         )
         db.add(source)
@@ -151,7 +176,8 @@ class IngestionPipeline:
         raw_chunks = SemanticChunker.chunk_section(
             text=content,
             page_number=1,
-            section_title="Pasted Notes"
+            section_title="Pasted Notes",
+            heading_hierarchy=["Pasted Notes"]
         )
 
         total_tokens = 0
@@ -192,6 +218,25 @@ class IngestionPipeline:
             ]
             embeddings = embedding_provider.embed_batch([c["content"] for c in chunk_records])
             chroma_store.add_chunks(chunk_records, embeddings)
+        except Exception:
+            pass
+
+        # Index chunks into SQLite FTS5 for sub-10ms sparse lexical retrieval
+        try:
+            from core.rag.fts5 import FTS5IndexManager
+            FTS5IndexManager.init_fts5(db)
+            FTS5IndexManager.sync_chunks_batch(
+                db,
+                [
+                    {
+                        "id": c.id,
+                        "notebook_id": c.notebook_id,
+                        "source_id": c.source_id,
+                        "content": c.content
+                    }
+                    for c in all_chunks
+                ]
+            )
         except Exception:
             pass
 
