@@ -202,7 +202,6 @@ class PPTXSchemaValidator(BaseSchemaValidator):
 
     def validate_no_duplicate_slide_layouts(self):
         """Validate that each slide has exactly one slideLayout reference."""
-        import lxml.etree
 
         errors = []
         slide_rels_files = list(self.unpacked_dir.glob("ppt/slides/_rels/*.xml.rels"))
