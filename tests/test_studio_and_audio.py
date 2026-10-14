@@ -1,8 +1,10 @@
 import pytest
-from core.models import Notebook, StudioArtifact
-from core.ingest.pipeline import IngestionPipeline
-from core.studio.generators import StudioGenerator
+
 from core.audio.podcast import PodcastEngine
+from core.ingest.pipeline import IngestionPipeline
+from core.models import StudioArtifact
+from core.studio.generators import StudioGenerator
+
 
 @pytest.fixture
 def populated_notebook(db_session, test_notebook):
