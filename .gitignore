@@ -43,6 +43,8 @@ storage/audio/*
 !storage/audio/.gitkeep
 storage/vector_store/*
 !storage/vector_store/.gitkeep
+storage/models/*
+!storage/models/.gitkeep
 *.sqlite
 *.sqlite-journal
 *.db
