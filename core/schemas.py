@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+
 from pydantic import BaseModel, Field
+
 
 # Notebook Schemas
 class NotebookBase(BaseModel):
@@ -10,7 +11,7 @@ class NotebookCreate(NotebookBase):
     pass
 
 class NotebookUpdate(BaseModel):
-    title: Optional[str] = Field(None, max_length=255)
+    title: str | None = Field(None, max_length=255)
 
 class NotebookResponse(NotebookBase):
     id: str
@@ -48,8 +49,8 @@ class SourceResponse(SourceBase):
 # Citation & Chunk Schemas
 class CitationItem(BaseModel):
     index: int
-    chunk_id: Optional[str] = None
-    source_id: Optional[str] = None
+    chunk_id: str | None = None
+    source_id: str | None = None
     source_title: str
     page_number: int = 1
     snippet: str
@@ -59,7 +60,7 @@ class ChunkResponse(BaseModel):
     source_id: str
     notebook_id: str
     page_number: int
-    section_title: Optional[str] = None
+    section_title: str | None = None
     content: str
     char_start: int
     char_end: int
@@ -70,16 +71,16 @@ class ChunkResponse(BaseModel):
 # Chat & Message Schemas
 class ChatQueryRequest(BaseModel):
     query: str = Field(..., min_length=1)
-    thread_id: Optional[str] = None
-    llm_provider: Optional[str] = None  # gemini, openai, anthropic, ollama
-    model_name: Optional[str] = None
+    thread_id: str | None = None
+    llm_provider: str | None = None  # gemini, openai, anthropic, ollama
+    model_name: str | None = None
 
 class MessageResponse(BaseModel):
     id: str
     role: str
     content: str
     created_at: datetime
-    citations: List[CitationItem] = []
+    citations: list[CitationItem] = []
 
     class Config:
         from_attributes = True
@@ -89,7 +90,7 @@ class ChatThreadResponse(BaseModel):
     notebook_id: str
     title: str
     created_at: datetime
-    messages: List[MessageResponse] = []
+    messages: list[MessageResponse] = []
 
     class Config:
         from_attributes = True
@@ -100,8 +101,8 @@ class NoteCreate(BaseModel):
     content: str = ""
 
 class NoteUpdate(BaseModel):
-    title: Optional[str] = None
-    content: Optional[str] = None
+    title: str | None = None
+    content: str | None = None
 
 class NoteResponse(BaseModel):
     id: str
@@ -115,22 +116,22 @@ class NoteResponse(BaseModel):
         from_attributes = True
 
 class SynthesizeNotesRequest(BaseModel):
-    note_ids: List[str] = Field(..., min_length=2)
-    instructions: Optional[str] = None
+    note_ids: list[str] = Field(..., min_length=2)
+    instructions: str | None = None
 
 # Studio Artifact Schemas
 class StudioArtifactGenerateRequest(BaseModel):
     artifact_type: str = Field(..., description="study_guide | briefing_doc | faq | timeline | audio_overview")
-    custom_instructions: Optional[str] = None
+    custom_instructions: str | None = None
 
 class StudioArtifactResponse(BaseModel):
     id: str
     notebook_id: str
     artifact_type: str
     title: str
-    content_json: Optional[str] = None
-    content_markdown: Optional[str] = None
-    media_url: Optional[str] = None
+    content_json: str | None = None
+    content_markdown: str | None = None
+    media_url: str | None = None
     created_at: datetime
 
     class Config:
@@ -145,6 +146,6 @@ class DialogueLine(BaseModel):
 class AudioOverviewResponse(BaseModel):
     artifact_id: str
     title: str
-    dialogue: List[DialogueLine]
-    audio_url: Optional[str] = None
-    duration_seconds: Optional[float] = None
+    dialogue: list[DialogueLine]
+    audio_url: str | None = None
+    duration_seconds: float | None = None
