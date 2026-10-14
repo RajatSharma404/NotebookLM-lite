@@ -16,20 +16,29 @@ router = APIRouter(prefix="/notebooks", tags=["Notebooks"])
 
 @router.get("", response_model=list[NotebookResponse])
 def list_notebooks(db: Session = Depends(get_db)):
+    # Batch query source counts and note counts to eliminate N+1 queries
+    source_counts = dict(
+        db.query(Source.notebook_id, func.count(Source.id))
+        .group_by(Source.notebook_id)
+        .all()
+    )
+    note_counts = dict(
+        db.query(Note.notebook_id, func.count(Note.id))
+        .group_by(Note.notebook_id)
+        .all()
+    )
     notebooks = db.query(Notebook).order_by(Notebook.updated_at.desc()).all()
-    results = []
-    for nb in notebooks:
-        src_cnt = db.query(func.count(Source.id)).filter(Source.notebook_id == nb.id).scalar() or 0
-        note_cnt = db.query(func.count(Note.id)).filter(Note.notebook_id == nb.id).scalar() or 0
-        results.append(NotebookResponse(
+    return [
+        NotebookResponse(
             id=nb.id,
             title=nb.title,
             created_at=nb.created_at,
             updated_at=nb.updated_at,
-            source_count=src_cnt,
-            note_count=note_cnt
-        ))
-    return results
+            source_count=source_counts.get(nb.id, 0),
+            note_count=note_counts.get(nb.id, 0),
+        )
+        for nb in notebooks
+    ]
 
 @router.post("", response_model=NotebookResponse, status_code=status.HTTP_201_CREATED)
 def create_notebook(payload: NotebookCreate, db: Session = Depends(get_db)):
@@ -102,6 +111,13 @@ def delete_notebook(notebook_id: str, db: Session = Depends(get_db)):
     try:
         from core.rag.chroma_store import chroma_store
         chroma_store.delete_notebook_chunks(notebook_id)
+    except Exception:
+        pass
+
+    # Clean up full-text entries from SQLite FTS5
+    try:
+        from core.rag.fts5 import FTS5IndexManager
+        FTS5IndexManager.delete_notebook_chunks(db, notebook_id)
     except Exception:
         pass
 
