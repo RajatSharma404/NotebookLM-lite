@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     HOST: str = "127.0.0.1"
     PORT: int = 8000
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
     DATABASE_URL: str = f"sqlite:///{BASE_DIR / 'storage' / 'notebooklm.db'}"
     STORAGE_UPLOADS_DIR: Path = BASE_DIR / "storage" / "uploads"
